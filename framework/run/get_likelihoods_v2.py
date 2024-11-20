@@ -123,7 +123,6 @@ def get_likelihoods(args):
         
         return score
 
-
     def get_overall_log_likelihoods(list_of_results):
         """Compute log likelihood of all generations under their given context.
         list_of_results: list of dictionaries with keys:
@@ -158,6 +157,15 @@ def get_likelihoods(args):
             'most_likely_neg_log_likelihoods_importance_mean_second_prompt',
             'most_likely_neg_log_likelihoods_importance_max_second_prompt',
             'most_likely_neg_log_likelihoods_importance_min_second_prompt',
+            
+            'average_neg_log_likelihoods_third_prompt',
+            'average_neg_log_likelihoods_importance_mean_third_prompt',
+            'average_neg_log_likelihoods_importance_max_third_prompt',
+            'average_neg_log_likelihoods_importance_min_third_prompt',
+            'most_likely_neg_log_likelihoods_third_prompt', 
+            'most_likely_neg_log_likelihoods_importance_mean_third_prompt',
+            'most_likely_neg_log_likelihoods_importance_max_third_prompt',
+            'most_likely_neg_log_likelihoods_importance_min_third_prompt',
             
             'similarity_score',
             'semantic_set_ids',
@@ -200,46 +208,6 @@ def get_likelihoods(args):
         
         return entropy
     
-    def get_predictive_entropy_v2(log_likelihoods, generation_level_weight, generation_level_all):
-        """Compute predictive entropy of approximate posterior predictive"""
-        mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
-
-        # ====
-        lambda_1  = 0.4
-        lambda_2  = 0.4
-        generation_level_weight_ = generation_level_weight[0]
-        generation_level_all_ = generation_level_all[0]
-        generation_level_all_expanded = generation_level_all_.view(-1, 1)
-        
-        final_weights = torch.where(
-            generation_level_all_expanded > 5,
-            1 - lambda_1 * (generation_level_weight_ / generation_level_all_expanded),  # Apply (1 + x/n) when A > 5
-            1 + lambda_2 * (generation_level_weight_ / generation_level_all_expanded)   # Apply (1 - x/n) when A <= 5
-        )
-        # =====
-        entropy_bf = -torch.sum(mean_across_models, dim=1) / torch.tensor(mean_across_models.shape[1])
-        
-        weighted_mean = mean_across_models * final_weights
-        entropy = -torch.sum(weighted_mean, dim=1) / torch.tensor(weighted_mean.shape[1])
-        
-
-        
-        return entropy
-
-        # print(normalized_weights)
-        # print(weighted_mean)
-        # normalized_weights = 1 + (generation_level_weight_ / generation_level_weight_.sum(dim=1, keepdim=True))
-        # normalized_weights = torch.where(torch.isnan(normalized_weights), 1.0, normalized_weights)
-        # generation_level_weight = generation_level_weight / generation_level_weight.shape[2]
-        # generation_level_weight_ = generation_level_weight[0]
-        # generation_level_weight_ = torch.where(generation_level_weight_ < 0.1, 0.1, generation_level_weight_)
-        # generation_level_weight_ = torch.where(torch.exp(mean_across_models) < 0.7, torch.exp(mean_across_models), generation_level_weight_)
-        # generation_level_weight_ = torch.where(torch.exp(mean_across_models) > generation_level_weight_, torch.exp(mean_across_models), generation_level_weight_)
-        # generation_level_weight_ = torch.where(generation_level_weight_ < 0.00001, 0.00001, generation_level_weight_)
-        # adjusted_mean = torch.log((torch.exp(mean_across_models) + generation_level_weight_)/2.0)
-        # entropy = -torch.sum(adjusted_mean, dim=1) / torch.tensor(mean_across_models.shape[1])
-        return entropy
-    
     def get_predictive_entropy_over_concepts(log_likelihoods, semantic_set_ids):
         """Compute the semantic entropy"""
         #log_likelihoods = log_likelihoods[:,:,:1]
@@ -262,12 +230,7 @@ def get_likelihoods(args):
 
         return torch.tensor(entropies)
     
-    def doc_entropy(probabilities):
-        # entropy = -probabilities * torch.log(probabilities) - (1 - probabilities) * torch.log(1 - probabilities)
-        entropy = -probabilities * torch.log(probabilities)
-        return entropy
-    
-    # === Main loop ==================================
+    ### === Main loop ==================================
     result = []
     ids = []
     for i, sample in tqdm(enumerate(sequences)):
@@ -286,7 +249,7 @@ def get_likelihoods(args):
         # groundedness_score_most_likely = groundedness_dict[id_]['groundedness_score_most_likely'][1]
         # groundedness_scores = groundedness_dict[id_]['groundedness_scores']
 
-        # === Define variables
+        # === Define variables ===================
         # First prompt format
         average_neg_log_likelihoods_main_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_mean_main_prompt = torch.zeros((generations.shape[0],))
@@ -297,18 +260,20 @@ def get_likelihoods(args):
         average_neg_log_likelihoods_importance_mean_second_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_max_second_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_min_second_prompt = torch.zeros((generations.shape[0],))
+        # Third prompt format
+        average_neg_log_likelihoods_third_prompt = torch.zeros((generations.shape[0],))
+        average_neg_log_likelihoods_importance_mean_third_prompt = torch.zeros((generations.shape[0],))
+        average_neg_log_likelihoods_importance_max_third_prompt = torch.zeros((generations.shape[0],))
+        average_neg_log_likelihoods_importance_min_third_prompt = torch.zeros((generations.shape[0],))
         
-        
-        # = For generations ========================  
+        ### = For generations ===============================
         for generation_index in range(generations.shape[0]):
-            
-            ### === Main prompt ============================= 
             generation = generations[generation_index][generations[generation_index] != tokenizer.pad_token_id]
-            probs = probabilities_generations[generation_index][2]
             importance_score = importance_scores[generation_index][0]
             phrases = importance_scores[generation_index][1]
-            # groundedness_score = groundedness_scores[generation_index][1]
             
+            ### === Main prompt ============================= 
+            probs = probabilities_generations[generation_index][2]
             model_output_loss = compute_token_nll(probs) 
             model_output_loss_importance_mean = compute_token_nll_importance_phrase(
                 generation, probs,
@@ -357,14 +322,38 @@ def get_likelihoods(args):
                 average_neg_log_likelihoods_importance_max_second_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_min_second_prompt[generation_index] = score
 
-        # = For most-likely ========================
-        if len(sample['cleaned_most_likely_generation_ids']) > 0:
+
+            ### === Third prompt =============================
+            probs_third = probabilities_generations[generation_index][4]
+            model_output_loss_third = compute_token_nll(probs_third) 
+            model_output_loss_importance_mean_third = compute_token_nll_importance_phrase(
+                generation, probs_third,
+                importance_score, phrases, mode='mean'
+            )
+            model_output_loss_importance_max_third = compute_token_nll_importance_phrase(
+                generation, probs_third,
+                importance_score, phrases, mode='max'
+            )
+            model_output_loss_importance_min_third = compute_token_nll_importance_phrase(
+                generation, probs_third,
+                importance_score, phrases, mode='min'
+            )
             
-            ### === Main prompt =============================
-            probs = probabilities_most_likely[2]
+            average_neg_log_likelihoods_third_prompt[generation_index] = model_output_loss_third
+            average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = model_output_loss_importance_mean_third
+            average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = model_output_loss_importance_max_third
+            average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = model_output_loss_importance_min_third
+            
+
+
+
+        ### = For most-likely ===============================
+        if len(sample['cleaned_most_likely_generation_ids']) > 0:
             _generation_most_likely = generation_most_likely[generation_most_likely != tokenizer.pad_token_id]
             phrases = importance_score_most_likely[1]
             
+            # === Main prompt ===============================
+            probs = probabilities_most_likely[2]
             most_likely_model_output_loss = compute_token_nll(probs)
             most_likely_model_output_loss_importance_mean = compute_token_nll_importance_phrase(
                 _generation_most_likely, probs,
@@ -383,7 +372,6 @@ def get_likelihoods(args):
             most_likely_model_output_loss_importance_mean_main_prompt = most_likely_model_output_loss_importance_mean.cpu()
             most_likely_model_output_loss_importance_max_main_prompt = most_likely_model_output_loss_importance_max.cpu()
             most_likely_model_output_loss_importance_min_main_prompt = most_likely_model_output_loss_importance_min.cpu()
-            
             
             # === Second prompt =============================
             probs_second = probabilities_most_likely[3]
@@ -414,6 +402,26 @@ def get_likelihoods(args):
                 most_likely_model_output_loss_importance_max_second_prompt = score
                 most_likely_model_output_loss_importance_min_second_prompt = score
 
+            # === third prompt ===============================
+            probs_third = probabilities_most_likely[4]
+            most_likely_model_output_loss_third_prompt = compute_token_nll(probs_third)
+            most_likely_model_output_loss_importance_mean_third_prompt = compute_token_nll_importance_phrase(
+                _generation_most_likely, probs_third,
+                importance_score_most_likely[0], phrases, mode='mean'
+            )
+            most_likely_model_output_loss_importance_max_third_prompt = compute_token_nll_importance_phrase(
+                _generation_most_likely, probs_third,
+                importance_score_most_likely[0], phrases, mode='max'
+            )
+            most_likely_model_output_loss_importance_min_third_prompt = compute_token_nll_importance_phrase(
+                _generation_most_likely, probs_third,
+                importance_score_most_likely[0], phrases, mode='min'
+            )
+            most_likely_model_output_loss_third_prompt = most_likely_model_output_loss_third_prompt.cpu()
+            most_likely_model_output_loss_importance_mean_third_prompt = most_likely_model_output_loss_importance_mean_third_prompt.cpu()
+            most_likely_model_output_loss_importance_max_third_prompt = most_likely_model_output_loss_importance_max_third_prompt.cpu()
+            most_likely_model_output_loss_importance_min_third_prompt = most_likely_model_output_loss_importance_min_third_prompt.cpu()
+
         else:
             score = 100000
             most_likely_model_output_loss_main_prompt = score
@@ -426,8 +434,13 @@ def get_likelihoods(args):
             most_likely_model_output_loss_importance_max_second_prompt = score
             most_likely_model_output_loss_importance_min_second_prompt = score
             
+            most_likely_model_output_loss_third_prompt = score
+            most_likely_model_output_loss_importance_mean_third_prompt = score
+            most_likely_model_output_loss_importance_max_third_prompt = score
+            most_likely_model_output_loss_importance_min_third_prompt = score
             
-        # = Write to file =========================
+            
+        ### = Write to file =========================
         result_dict['id'] = id_
         result_dict['generations'] = generations.cpu()
         result_dict['similarity_score'] = sample['similarity_score']
@@ -455,13 +468,23 @@ def get_likelihoods(args):
         result_dict['most_likely_neg_log_likelihoods_importance_max_second_prompt'] = most_likely_model_output_loss_importance_max_second_prompt
         result_dict['most_likely_neg_log_likelihoods_importance_min_second_prompt'] = most_likely_model_output_loss_importance_min_second_prompt
         
+        # Third prompt
+        result_dict['average_neg_log_likelihoods_third_prompt'] = average_neg_log_likelihoods_third_prompt.cpu()
+        result_dict['average_neg_log_likelihoods_importance_mean_third_prompt'] = average_neg_log_likelihoods_importance_mean_third_prompt.cpu()
+        result_dict['average_neg_log_likelihoods_importance_max_third_prompt'] = average_neg_log_likelihoods_importance_max_third_prompt.cpu()
+        result_dict['average_neg_log_likelihoods_importance_min_third_prompt'] = average_neg_log_likelihoods_importance_min_third_prompt.cpu()
+        result_dict['most_likely_neg_log_likelihoods_third_prompt'] = most_likely_model_output_loss_third_prompt
+        result_dict['most_likely_neg_log_likelihoods_importance_mean_third_prompt'] = most_likely_model_output_loss_importance_mean_third_prompt
+        result_dict['most_likely_neg_log_likelihoods_importance_max_third_prompt'] = most_likely_model_output_loss_importance_max_third_prompt
+        result_dict['most_likely_neg_log_likelihoods_importance_min_third_prompt'] = most_likely_model_output_loss_importance_min_third_prompt
+        
         result.append(result_dict)
-    
     
     ### === Save the likelihoods result ==============
     with open(likelihoods_output_file, 'wb') as ofile:
         pickle.dump(result, ofile)
     print(f"Results saved to {likelihoods_output_file}")
+
 
 
     ### === Attach uncertainty =======================
@@ -516,6 +539,30 @@ def get_likelihoods(args):
         overall_results['semantic_set_ids']
     ) 
     
+    # === Third prompt ======== 
+    # PE & SE
+    average_predictive_entropy_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_third_prompt'])
+    predictive_entropy_over_concepts_third_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_third_prompt'],
+        overall_results['semantic_set_ids']
+    )
+    # With MARS
+    average_predictive_entropy_importance_mean_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_third_prompt'])
+    average_predictive_entropy_importance_max_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_third_prompt'])
+    average_predictive_entropy_importance_min_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_third_prompt'])
+    predictive_entropy_over_concepts_importance_mean_third_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_mean_third_prompt'],
+        overall_results['semantic_set_ids']
+    )    
+    predictive_entropy_over_concepts_importance_max_third_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_max_third_prompt'],
+        overall_results['semantic_set_ids']
+    )    
+    predictive_entropy_over_concepts_importance_min_third_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_min_third_prompt'],
+        overall_results['semantic_set_ids']
+    )
+    
     # === Write in variables ==================
     # = Main prompt ===
     overall_results['average_predictive_entropy_main_prompt'] = average_predictive_entropy_main_prompt
@@ -536,6 +583,16 @@ def get_likelihoods(args):
     overall_results['predictive_entropy_over_concepts_importance_mean_second_prompt'] = predictive_entropy_over_concepts_importance_mean_second_prompt
     overall_results['predictive_entropy_over_concepts_importance_max_second_prompt'] = predictive_entropy_over_concepts_importance_max_second_prompt
     overall_results['predictive_entropy_over_concepts_importance_min_second_prompt'] = predictive_entropy_over_concepts_importance_min_second_prompt
+    
+    # = Third prompt ===
+    overall_results['average_predictive_entropy_third_prompt'] = average_predictive_entropy_third_prompt
+    overall_results['predictive_entropy_over_concepts_third_prompt'] = predictive_entropy_over_concepts_third_prompt
+    overall_results['average_predictive_entropy_importance_mean_third_prompt'] = average_predictive_entropy_importance_mean_third_prompt
+    overall_results['average_predictive_entropy_importance_max_third_prompt'] = average_predictive_entropy_importance_max_third_prompt
+    overall_results['average_predictive_entropy_importance_min_third_prompt'] = average_predictive_entropy_importance_min_third_prompt
+    overall_results['predictive_entropy_over_concepts_importance_mean_third_prompt'] = predictive_entropy_over_concepts_importance_mean_third_prompt
+    overall_results['predictive_entropy_over_concepts_importance_max_third_prompt'] = predictive_entropy_over_concepts_importance_max_third_prompt
+    overall_results['predictive_entropy_over_concepts_importance_min_third_prompt'] = predictive_entropy_over_concepts_importance_min_third_prompt
     
     
     ### === Save the uncertainty result ============
@@ -636,6 +693,66 @@ if __name__ == "__main__":
   
   
   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    # def doc_entropy(probabilities):
+    #     # entropy = -probabilities * torch.log(probabilities) - (1 - probabilities) * torch.log(1 - probabilities)
+    #     entropy = -probabilities * torch.log(probabilities)
+    #     return entropy
+  
+  
+    # def get_predictive_entropy_v2(log_likelihoods, generation_level_weight, generation_level_all):
+    #     """Compute predictive entropy of approximate posterior predictive"""
+    #     mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
+
+    #     # ====
+    #     lambda_1  = 0.4
+    #     lambda_2  = 0.4
+    #     generation_level_weight_ = generation_level_weight[0]
+    #     generation_level_all_ = generation_level_all[0]
+    #     generation_level_all_expanded = generation_level_all_.view(-1, 1)
+        
+    #     final_weights = torch.where(
+    #         generation_level_all_expanded > 5,
+    #         1 - lambda_1 * (generation_level_weight_ / generation_level_all_expanded),  # Apply (1 + x/n) when A > 5
+    #         1 + lambda_2 * (generation_level_weight_ / generation_level_all_expanded)   # Apply (1 - x/n) when A <= 5
+    #     )
+    #     # =====
+    #     entropy_bf = -torch.sum(mean_across_models, dim=1) / torch.tensor(mean_across_models.shape[1])
+        
+    #     weighted_mean = mean_across_models * final_weights
+    #     entropy = -torch.sum(weighted_mean, dim=1) / torch.tensor(weighted_mean.shape[1])
+
+    #     return entropy
   
   
     # uncertainty_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_uncertainty_generation.pkl'

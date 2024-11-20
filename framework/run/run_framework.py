@@ -20,6 +20,8 @@ from get_semantic_similarity import get_similarity
 from get_probabilities import get_probability
 from get_likelihoods_v2 import get_likelihoods
 
+from get_groundedness import get_groundedness
+
 from get_uncertainty import get_uncertainty
 from get_correctness import get_correctness
 # from get_verification import get_verification
@@ -38,10 +40,10 @@ if __name__ == "__main__":
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever_top5'
+        'only_q', 'q_positive', 'q_negative', 'bm25_retriever_top5', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever_top5'
+        'only_q', 'q_positive', 'q_negative', 'bm25_retriever_top5', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
@@ -81,27 +83,25 @@ if __name__ == "__main__":
     # Step 1: answer generation & cleaning
     # generation(args)
     
-    
     # Step 2: computing semantic similarities
     # get_similarity(args)   # this generates importance score
     # get_only_query_semantic(args)
-    # if args.with_groundedness == 'yes':
-    #     get_verification(args)
     
+    # Step 3: computing groundedness
+    get_groundedness(args)
     
-    # Step 3: computing likelihoods
-    # get_probability(args)
-    # get_likelihoods(args)
+    # Step 4: computing likelihoods
+    get_probability(args)
+    get_likelihoods(args)
     # get_uncertainty(args)
-    
     
     # Step 5: computing correctness
     # get_correctness(args)
     
-    
     # Step 6: computing results
-    get_calibration_results(args)
+    # get_calibration_results(args)
     # get_axiomatic_results(args)
+    
     
     # python framework/run/run_framework.py
 

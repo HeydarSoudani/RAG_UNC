@@ -23,12 +23,12 @@ def generation(args):
     
     print("\n--- Step 1: Answers generation ...")
     print(f"""
-        Model name:   {args.model}
-        Dataset:      {args.dataset} ({args.fraction_of_data_to_use})
-        Prompt (1st): {args.main_prompt_format}
-        Prompt (2ed): {args.second_prompt_format}
-        Run id:       {args.run_id}
-        Seed:         {args.seed}
+        Model name:    {args.model}
+        Dataset:       {args.dataset} ({args.fraction_of_data_to_use})
+        Prompt (1st):  {args.main_prompt_format}
+        Prompt (2ed):  {args.second_prompt_format}
+        Run id:        {args.run_id}
+        Seed:          {args.seed}
     """.replace('        ', ''))
     
     
@@ -254,10 +254,10 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'q_positive', 'q_positive', 'q_negative'
     ])
     
@@ -297,4 +297,5 @@ if __name__ == "__main__":
     generation(args)
     
     # python framework/run/answers_generation.py
+    
     

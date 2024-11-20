@@ -51,7 +51,6 @@ def get_probability(args):
     
     # === Functions ==================================
     def get_probability(prompt, generation):
-        
         prompt = prompt[prompt != tokenizer.pad_token_id]
         len_prompt = len(prompt)
         
@@ -62,6 +61,24 @@ def get_probability(args):
         model_output = model(torch.reshape(p_generation, (1, -1)), labels=target_ids, output_hidden_states=False)
         
         _logits = model_output['logits'][0, len_prompt-1:-1]
+        _logits = _logits.float()
+        ids = p_generation[len_prompt:]
+        probs = torch.nn.functional.softmax(_logits, dim=1)
+        probs = torch.gather(probs, dim=1, index=ids.view(-1, 1))
+        
+        return probs
+    
+    def get_probability_unconditioned(prompt, generation):
+        prompt = prompt[prompt != tokenizer.pad_token_id]
+        len_prompt = len(prompt)
+        
+        _generation = generation[generation != tokenizer.pad_token_id]
+        p_generation = torch.cat((prompt, _generation), dim=0)
+        # target_ids = p_generation.clone()
+        # target_ids[:len_prompt] = -100
+        generation_only = p_generation.clone()[len_prompt-1:]
+        model_output = model(torch.reshape(generation_only, (1, -1)), labels=generation_only, output_hidden_states=False)
+        _logits = model_output['logits'][0, :-1]
         _logits = _logits.float()
         ids = p_generation[len_prompt:]
         probs = torch.nn.functional.softmax(_logits, dim=1)
@@ -85,42 +102,57 @@ def get_probability(args):
                 generation_most_likely = sample['cleaned_most_likely_generation_ids'].to(args.device)
                 generation_text_most_likely = sample['cleaned_most_likely_generation']
                 generation_tokens_most_likely = [tokenizer.decode([token_id], skip_special_tokens=True) for token_id in generation_most_likely if token_id != 1]
+                                
+                if id_ in _sequences_secondry:
+                    prompt_secondry = _sequences_secondry[id_]['prompt'].to(args.device)
                 
                 result_dict[id_] = {
                     'question': question,
                     'answers': answers,
                 }
-                                
-                if id_ in _sequences_secondry:
-                    prompt_secondry = _sequences_secondry[id_]['prompt'].to(args.device)
                 
                 # = For generations ====
                 probabilities = []
                 for generation_index in range(generations.shape[0]):
                     cur_generation = generations[generation_index]
                     cur_generation_tokens = [tokenizer.decode([token_id], skip_special_tokens=True) for token_id in cur_generation if token_id != 1]
+                    
+                    # main prompt
                     probs = get_probability(prompt, cur_generation)
                     
+                    # second prompt
                     if id_ in _sequences_secondry:
                         probs_secondry = get_probability(prompt_secondry, cur_generation)
-                        probabilities.append((generations_text[generation_index], cur_generation_tokens, probs, probs_secondry))
                     else:
-                        probabilities.append((generations_text[generation_index], cur_generation_tokens, probs, torch.tensor([])))
+                        probs_secondry = torch.tensor([])
+                    
+                    # third prompt: only answer
+                    probs_only_answer = get_probability_unconditioned(prompt, cur_generation)
+                    
+                    probabilities.append((generations_text[generation_index], cur_generation_tokens, probs, probs_secondry, probs_only_answer))
                 result_dict[id_]['probabilities'] = probabilities
                 
                 # = For most-likely ====
                 if len(generation_most_likely) > 0:
+                    
+                    # main prompt
                     probs_most_likely = get_probability(prompt, generation_most_likely)
                     
+                    # second prompt
                     if id_ in _sequences_secondry:
                         probs_secondry_most_likely = get_probability(prompt_secondry, generation_most_likely)
                     else:
                         probs_secondry_most_likely = torch.tensor([])
+                    
+                    # third prompt: only answer
+                    probs_only_answer_most_likely = get_probability_unconditioned(prompt, generation_most_likely)
+                    
                 else:
                     probs_most_likely = torch.tensor([])
                     probs_secondry_most_likely = torch.tensor([])
+                    probs_only_answer_most_likely = torch.tensor([])
                     
-                probability_most_likely = (generation_text_most_likely, generation_tokens_most_likely, probs_most_likely, probs_secondry_most_likely)
+                probability_most_likely = (generation_text_most_likely, generation_tokens_most_likely, probs_most_likely, probs_secondry_most_likely, probs_only_answer_most_likely)
                 result_dict[id_]['probability_most_likely'] = probability_most_likely
                 
                 
@@ -129,14 +161,16 @@ def get_probability(args):
                     prob[0],
                     prob[1],
                     [round(i, 4) for i in prob[2].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in prob[3].reshape(1, -1).tolist()[0]]
+                    [round(i, 4) for i in prob[3].reshape(1, -1).tolist()[0]],
+                    [round(i, 4) for i in prob[4].reshape(1, -1).tolist()[0]],
                     ) for prob in probabilities]
                 
                 probability_most_likely_jsl = (
                     probability_most_likely[0],
                     probability_most_likely[1],
                     [round(i, 4) for i in probability_most_likely[2].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in probability_most_likely[3].reshape(1, -1).tolist()[0]]
+                    [round(i, 4) for i in probability_most_likely[3].reshape(1, -1).tolist()[0]],
+                    [round(i, 4) for i in probability_most_likely[4].reshape(1, -1).tolist()[0]]
                 )
                 result_item = {
                     'id': id_,
@@ -163,7 +197,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[

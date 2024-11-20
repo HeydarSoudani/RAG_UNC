@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
-#SBATCH --time=0:30:00
+#SBATCH --time=1:00:00
 #SBATCH --output=script_logging/slurm_%A.out
 
 module load 2022
@@ -16,10 +16,10 @@ module load Python/3.10.4-GCCcore-11.3.0
 
 
 model="meta-llama/Llama-2-7b-chat-hf"
-dataset="nq"
-main_prompt_format="q_negative"
+dataset="webquestions"
+main_prompt_format="rerank_retriever_top5"
 second_prompt_format="only_q"
-fraction_of_data_to_use=0.16
+fraction_of_data_to_use=1.0
 run_id="run_0"
 
 srun python $HOME/RAG_UNC/framework/run/run_framework.py \
