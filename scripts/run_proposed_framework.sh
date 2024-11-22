@@ -24,8 +24,6 @@ module load Python/3.10.4-GCCcore-11.3.0
 # pip uninstall transformers torch
 # pip install transformers torch
 
-# export HF_HOME="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"
-
 # python -m pyserini.index -collection JsonCollection -generator DefaultLuceneDocumentGenerator -threads 20 -input "datasets/single_hop/corpus" -index "datasets/single_hop/corpus/bm25_index" -storePositions -storeDocvectors -storeRaw
 # srun python $HOME/RAG_UNC/processed_datasets/_processing_dataset.py
 # srun python $HOME/RAG_UNC/processed_datasets/_corpus_preparation.py
