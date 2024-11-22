@@ -16,7 +16,7 @@ from tqdm import tqdm
 import sklearn.metrics
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
-from sentence_transformers.cross_encoder import CrossEncoder
+
 
 from utils import set_seed, uncertainty_to_confidence_min_max, uncertainty_to_confidence_gaussian, uncertainty_to_confidence_sigmoid, uncertainty_to_confidence_tanh
 from metrics.calibration import plugin_RCE_est, indication_diagram
@@ -37,16 +37,8 @@ def get_calibration_results(args):
     # === Define output files ===================
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
-    similarity_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_similarity_output__sec_{args.second_prompt_format}.jsonl'
     calibration_output_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_calibration_results.jsonl'
 
-    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
-    sequence_input_secondry = f'{base_dir_output}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
-    with open(sequence_input_main, 'rb') as infile:
-        sequences_main = pickle.load(infile)
-    with open(sequence_input_secondry, 'rb') as infile:
-        sequences_secondry = pickle.load(infile)
-    
     
     def create_result_df(prompt_format):
         
@@ -54,7 +46,7 @@ def get_calibration_results(args):
         likelihoods_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_generation.pkl'
         correctness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
         generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
-        groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
+        # groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -64,8 +56,8 @@ def get_calibration_results(args):
             likelihoods_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
-        with open(groundedness_input_file, 'rb') as f:
-            groundedness_results  = pickle.load(f)
+        # with open(groundedness_input_file, 'rb') as f:
+        #     groundedness_results  = pickle.load(f)
         
         # === Read data ============================
         # 
@@ -95,8 +87,8 @@ def get_calibration_results(args):
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
             
-            'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
-            'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
+            # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             
         )
         likelihoods = likelihoods_results
@@ -110,10 +102,10 @@ def get_calibration_results(args):
         likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
         
         # 
-        groundedness_df = pd.DataFrame(groundedness_results)
+        # groundedness_df = pd.DataFrame(groundedness_results)
 
         # 
-        result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id').merge(groundedness_df, on='id')
+        result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id') # .merge(groundedness_df, on='id')
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
@@ -148,6 +140,7 @@ def get_calibration_results(args):
     
     def get_correctness(results):
         correctness_results = {}
+        correctness_results['selected_metric'] = args.accuracy_metric
         
         if args.accuracy_metric in ['bem_score', 'rouge_score', 'gpt_score', 'exact_match']:
             correctness_bin = (results[args.accuracy_metric] > args.roc_auc_threshold).astype('int') 
@@ -356,11 +349,11 @@ def get_calibration_results(args):
             num_bins=30
         )
         
-        coef_1 = result_df['most_likely_kl_main_second'].apply(lambda x: x.get('max', None))
-        coef_2 = result_df['most_likely_kl_second_third'].apply(lambda x: x.get('max', None))
+        # coef_1 = result_df['most_likely_kl_main_second'].apply(lambda x: x.get('max', None))
+        # coef_2 = result_df['most_likely_kl_second_third'].apply(lambda x: x.get('max', None))
         # coef_3 = result_df['most_likely_kl_main_third'].apply(lambda x: x.get('max', None)) 
-        coef_1_ = coef_1 / (coef_1+coef_2)
-        coef_2_ = coef_2 / (coef_1+coef_2)
+        # coef_1_ = coef_1 / (coef_1+coef_2)
+        # coef_2_ = coef_2 / (coef_1+coef_2)
         
         ### === For second prompt
         unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
@@ -375,18 +368,18 @@ def get_calibration_results(args):
         )
         
         ### === For third prompt
-        unc_model_key_third_prompt = keys_mapping['third_prompt'][uncertainty_model]
-        uncertainty_values_third_prompt = result_df[f"{unc_model_key_third_prompt}"]
-        # print(uncertainty_values_third_prompt.nsmallest(10))
-        # print(uncertainty_values_third_prompt.nlargest(10))
-        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_third_prompt)
-        confidence_values_third_prompt = uncertainty_to_confidence_min_max(uncertainty_values_third_prompt)
-        ece_test2 = ece_estimate(correctness, confidence_values_third_prompt)
-        plot_correctness_vs_uncertainty(
-            correctness, uncertainty_values_third_prompt,
-            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-            prefix=f"{uncertainty_model}_third_prompt", num_bins=40
-        )
+        # unc_model_key_third_prompt = keys_mapping['third_prompt'][uncertainty_model]
+        # uncertainty_values_third_prompt = result_df[f"{unc_model_key_third_prompt}"]
+        # # print(uncertainty_values_third_prompt.nsmallest(10))
+        # # print(uncertainty_values_third_prompt.nlargest(10))
+        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_third_prompt)
+        # confidence_values_third_prompt = uncertainty_to_confidence_min_max(uncertainty_values_third_prompt)
+        # ece_test2 = ece_estimate(correctness, confidence_values_third_prompt)
+        # plot_correctness_vs_uncertainty(
+        #     correctness, uncertainty_values_third_prompt,
+        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+        #     prefix=f"{uncertainty_model}_third_prompt", num_bins=40
+        # )
         
         
         ### === Combime first & second prompts 
@@ -460,202 +453,6 @@ def get_calibration_results(args):
     ### ===========================================
     # === Axiomatic runs ==========================
     # print('\n')
-    def get_aggreement(sequence_1, sequence_2, threshold=0.5):
-        
-        sequence_2_ = {}
-        for sample in sequence_2:
-            sequence_2_[sample['id']] = sample
-        
-        agree_list = []
-        non_agree_list = []
-        with open(similarity_output_jsonl_file, 'w') as jl_ofile:
-            
-            for i, sample in tqdm(enumerate(sequence_1)):
-                id_ = sample['id']
-                
-                if id_ in sequence_2_:
-                    generation_most_likely_seq1 = sample['cleaned_most_likely_generation']
-                    generation_most_likely_seq2 = sequence_2_[id_]['cleaned_most_likely_generation']
-                    
-                    # print(generation_most_likely_seq1)
-                    # print(generation_most_likely_seq2)
-                    
-                    similarity = similarity_model.predict([generation_most_likely_seq1, generation_most_likely_seq2])
-                    
-                    if similarity > threshold:
-                        agree_list.append(id_)
-                    else:
-                        non_agree_list.append(id_)
-                    
-                    # print(similarity)
-                    result_item = {
-                        'id': id_,
-                        'question': sample['question'],
-                        'generation_seq_1': generation_most_likely_seq1,
-                        'generation_seq_2': generation_most_likely_seq2,
-                        'sim_score': float(similarity)
-                    }
-                    jl_ofile.write(json.dumps(result_item) + '\n')
-                    
-                
-                else:
-                    print(f"\nQuery {id_} is not common between two sequences !!!")
-            
-        return agree_list, non_agree_list
-        
-    def in_doc_existence(sequences, ids):
-        samples = [item for item in sequences if item['id'] in ids]
-        
-        doc_exist, doc_not_exist = [], []
-        for idx, sample in enumerate(samples):
-            answer = sample['cleaned_most_likely_generation']
-            prompt_text = sample['prompt_text']
-            doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
-            
-            # def is_answer_in_doc(answer, doc, threshold=0.8):
-            #     return SequenceMatcher(None, answer, doc).ratio() > threshold
-            
-            # if answer in doc_text:
-            #     print('1')
-            if answer.lower() in doc_text.lower():
-                doc_exist.append(sample['id'])
-            else:
-                doc_not_exist.append(sample['id'])
-            # if re.search(r'\b' + re.escape(answer) + r'\b', doc_text, re.IGNORECASE):
-            #     print('3')
-            # if is_answer_in_doc(answer, doc_text):
-            #     print('4')
-            # else:
-            #     print('5')
-        return doc_exist, doc_not_exist
-    
-    # ### =================
-    # # == Here both main and second come from the main files 
-    # result_df_second_prompt = create_result_df(args.second_prompt_format)
-    # result_df_second_prompt_filtered_pe = result_df_second_prompt[result_df_second_prompt['average_predictive_entropy_main_prompt'] <= 100]
-    # result_df_second_prompt_filtered_se = result_df_second_prompt[result_df_second_prompt['predictive_entropy_over_concepts_main_prompt'] <= 100]
-    
-    # # First check: answer1 is equal to answer2
-    # if os.path.isfile(similarity_output_jsonl_file):
-    #     print(f"{similarity_output_jsonl_file} exists.")
-    #     threshold = 0.5
-    #     agree_list, non_agree_list = [], []
-    #     with open(similarity_output_jsonl_file, 'r') as file:
-    #         ids = []
-    #         for line in file:
-    #             sample = json.loads(line.strip())
-    #             ids.append(sample['id'])
-    #             if sample['sim_score'] > threshold:
-    #                 agree_list.append(sample['id'])
-    #             else:
-    #                 non_agree_list.append(sample['id'])
-    # else:
-    #     print("Computing similarity ...")
-    #     similarity_model_name = "cross-encoder/stsb-roberta-large"
-    #     similarity_model = CrossEncoder(model_name=similarity_model_name, num_labels=1)
-    #     similarity_model.model.to(args.device)
-    #     agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
-    
-    # selected_list = agree_list    # Axiom 3 (negative passage)
-    # selected_list = non_agree_list
-    
-    ### === For random testing =================
-    # print(ids)
-    # num_samples = 40
-    # random_selection = random.sample(ids, num_samples)
-    # selected_list = random_selection
-    
-    ### === Second check: answer2 exist in doc =
-    # agree_list_doc_exist, agree_list_doc_not_exist = in_doc_existence(sequences_main, agree_list)
-    # selected_list = agree_list_doc_exist # Axiom 1 (positive passage)
-    # selected_list = agree_list_doc_not_exist # Axiom 2 (positive passage)
-    
-    # Axiom 4
-    # non_agree_list_doc_exist, non_agree_list_doc_not_exist = in_doc_existence(sequences_main, non_agree_list)
-    # selected_list = non_agree_list_doc_exist
-    
-    # print(f"# samples: {len(selected_list)} ({round((len(selected_list)/len(sequences_main))*100 , 2)}%)")
-    
-    # for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
-    #     # unc_model_key = keys_mapping[uncertainty_model]
-    #     unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
-    #     unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
-        
-    #     if uncertainty_model in ['PE', 'PE_MARS']:
-    #         result_df_main_prompt = result_df_main_filtered_pe
-    #         result_df_second_prompt = result_df_second_prompt_filtered_pe
-    #     elif uncertainty_model in ['SE', 'SE_MARS']:
-    #         result_df_main_prompt = result_df_main_filtered_se
-    #         result_df_second_prompt = result_df_second_prompt_filtered_se
-    
-    #     ### For whole samples (main prompt)
-    #     _, correctness_main_prompt_bin_, one_minus_correctness_main_prompt_ = get_correctness(result_df_main_prompt)
-    #     correctness_main_prompt_ = 1 - np.array(one_minus_correctness_main_prompt_)
-    #     uncertainty_main_prompt_values_ = result_df_main_prompt[unc_model_key_main_prompt]
-        
-    #     # test2
-    #     # uncertainty_main_prompt_values_ = np.where(
-    #     #     result_df_main_prompt['id'].isin(selected_list),
-    #     #     result_df_main_prompt[unc_model_key_main_prompt] * 1.2,
-    #     #     result_df_main_prompt[unc_model_key_main_prompt]
-    #     # )
-    #     # test3: combine
-    #     # uncertainty_main_prompt_values_ = np.where(
-    #     #     result_df_main_prompt['id'].isin(selected_list),
-    #     #     result_df_main_prompt[unc_model_key_main_prompt] * 0.5,
-    #     #     abs(result_df_main_prompt[unc_model_key_main_prompt] - result_df_main_prompt[unc_model_key_second_prompt])
-    #     # )
-    #     confidence_main_prompt_values_ = uncertainty_to_confidence_min_max(uncertainty_main_prompt_values_)
-        
-    #     ### For Axiom1 samples (second prompt)
-    #     agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list)]
-    #     agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list)]
-        
-    #     _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(agree_main_prompt_df)
-    #     _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(agree_second_prompt_df)
-    #     correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-    #     correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-        
-    #     uncertainty_main_prompt_values =  agree_main_prompt_df[unc_model_key_main_prompt] # 0.5*
-    #     uncertainty_second_prompt_values = agree_second_prompt_df[unc_model_key_main_prompt] # Axioms: 1, 2, 3
-        
-    #     confidence_main_prompt_values = uncertainty_to_confidence_min_max(uncertainty_main_prompt_values)
-    #     confidence_second_prompt_values = uncertainty_to_confidence_min_max(uncertainty_second_prompt_values)
-        
-    #     auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-    #     auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
-    #     ece_main_prompt = ece_estimate(correctness_main_prompt, confidence_main_prompt_values)
-    #     ece_second_prompt = ece_estimate(correctness_second_prompt, confidence_second_prompt_values)
-    #     print(f"{uncertainty_model}, Axioms:")
-    #     print(f"Acc. (bem):  {correctness_second_prompt.mean()} -> {correctness_main_prompt.mean()}")
-    #     print(f"Uncertainty: {uncertainty_second_prompt_values.mean()} -> {uncertainty_main_prompt_values.mean()}")
-    #     print(f"Confidence:  {confidence_second_prompt_values.mean()} -> {confidence_main_prompt_values.mean()}")
-    #     print(f"AUROC:       {auroc_second_prompt} -> {auroc_main_prompt}")
-    #     print(f"ECE:         {ece_second_prompt} -> {ece_main_prompt}")
-        
-        # Axiom 4-1
-        # uncertainty_second_prompt_values = agree_main_prompt_df[unc_model_key_second_prompt] 
-        # confidence_second_prompt_values = uncertainty_to_confidence_min_max(uncertainty_second_prompt_values)
-        # auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_second_prompt_values)
-        # ece_second_prompt = ece_estimate(correctness_main_prompt, confidence_second_prompt_values)
-        # print(f"{uncertainty_model}, Axioms:")
-        # print(f"Acc. (bem):  {correctness_main_prompt.mean()}")
-        # print(f"Uncertainty: {uncertainty_second_prompt_values.mean()} -> {uncertainty_main_prompt_values.mean()}")
-        # print(f"Confidence:  {confidence_second_prompt_values.mean()} -> {confidence_main_prompt_values.mean()}")
-        # print(f"AUROC:       {auroc_second_prompt} -> {auroc_main_prompt}")
-        # print(f"ECE:         {ece_second_prompt} -> {ece_main_prompt}")
-        
-        ### === For test one: decrease the uncertainty of samples with same answer with/wo docs
-        # auroc_test1 = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin_, uncertainty_main_prompt_values_)
-        # ece_test1 = ece_estimate(correctness_main_prompt_, confidence_main_prompt_values_)
-        # plot_correctness_vs_uncertainty_for_axioms(
-        #     correctness_main_prompt_, uncertainty_main_prompt_values_,
-        #     correctness_main_prompt, uncertainty_main_prompt_values,
-        #     f'AUROC: {round(auroc_test1, 4)}\nECE: {round(ece_test1, 4)}',
-        #     f'{uncertainty_model}_axiom1', num_bins=40
-        # )
-        # print(f"AUROC:       {auroc_test1}")
-        # print(f"ECE:         {ece_test1}")
 
     
     
@@ -669,10 +466,10 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top5', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[

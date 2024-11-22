@@ -4,11 +4,27 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
-#SBATCH --time=1:00:00
+#SBATCH --time=3:00:00
 #SBATCH --output=script_logging/slurm_%A.out
+
+# huggingface-cli login
+
+# module load 2024
+# module load Python/3.12.3-GCCcore-13.3.0
+# pip install evaluate
+# pip install tensorflow
+# pip install tensorflow-hub
+# pip install tensorflow-text
+
 
 module load 2022
 module load Python/3.10.4-GCCcore-11.3.0
+# pip install --upgrade transformers
+
+# pip uninstall transformers torch
+# pip install transformers torch
+
+# export HF_HOME="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"
 
 # python -m pyserini.index -collection JsonCollection -generator DefaultLuceneDocumentGenerator -threads 20 -input "datasets/single_hop/corpus" -index "datasets/single_hop/corpus/bm25_index" -storePositions -storeDocvectors -storeRaw
 # srun python $HOME/RAG_UNC/processed_datasets/_processing_dataset.py
@@ -17,7 +33,7 @@ module load Python/3.10.4-GCCcore-11.3.0
 
 model="meta-llama/Llama-2-7b-chat-hf"
 dataset="webquestions"
-main_prompt_format="rerank_retriever_top5"
+main_prompt_format="rerank_retriever_top1"
 second_prompt_format="only_q"
 fraction_of_data_to_use=1.0
 run_id="run_0"
@@ -33,8 +49,11 @@ srun python $HOME/RAG_UNC/framework/run/run_framework.py \
 
 
 
+
 # prompt_format:
-    # 'only_q', 'q_negative', 'q_positive', 'bm25_retriever', 'rerank_retriever'
+# 'only_q', 'q_negative', 'q_positive',
+# 'bm25_retriever_top1', 'bm25_retriever_top5',
+# 'rerank_retriever_top1', 'rerank_retriever_top5'
 
 # mode:
 # 'seperated', 'combined'

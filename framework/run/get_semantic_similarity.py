@@ -23,7 +23,7 @@ def get_similarity(args):
     print(f"""
         Model name: {args.model}
         Dataset: {args.dataset}
-        Prompt format: {args.prompt_format}
+        Prompt format: {args.main_prompt_format}
         Run id: {args.run_id}
         Seed: {args.seed}
     """.replace('   ', ''))
@@ -31,10 +31,9 @@ def get_similarity(args):
     # === Define output files =============
     # === Read the generated data =========
     model = args.model.split('/')[-1]
-    similarities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-    
+    similarities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
     # generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_generation.pkl'
-    generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
+    generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
     with open(generation_file, 'rb') as infile:
         sequences = pickle.load(infile)
 
@@ -247,13 +246,20 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
+    ])
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.05)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     

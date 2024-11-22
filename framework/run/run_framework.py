@@ -26,7 +26,7 @@ from get_uncertainty import get_uncertainty
 from get_correctness import get_correctness
 # from get_verification import get_verification
 from get_calibration_results import get_calibration_results
-# from get_axiomatic_results import get_axiomatic_results
+from get_axiomatic_results import get_axiomatic_results
 
 
 if __name__ == "__main__":
@@ -40,10 +40,14 @@ if __name__ == "__main__":
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever_top5', 'rerank_retriever_top5'
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever_top5', 'rerank_retriever_top5'
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
@@ -84,7 +88,7 @@ if __name__ == "__main__":
     # generation(args)
     
     # Step 2: computing semantic similarities
-    # get_similarity(args)   # this generates importance score
+    get_similarity(args)   # this generates importance score
     # get_only_query_semantic(args)
     
     # Step 3: computing groundedness
@@ -96,11 +100,11 @@ if __name__ == "__main__":
     # get_uncertainty(args)
     
     # Step 5: computing correctness
-    # get_correctness(args)
+    get_correctness(args)
     
     # Step 6: computing results
-    # get_calibration_results(args)
-    # get_axiomatic_results(args)
+    get_calibration_results(args)
+    get_axiomatic_results(args)
     
     
     # python framework/run/run_framework.py

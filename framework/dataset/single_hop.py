@@ -104,7 +104,7 @@ class RAGDataset:
         
         if self.prompt_format in ['only_q', 'q_positive', 'q_negative']:
             self.dataset = convert_jsonl_to_dataset_static_psg(self.dataset_name, split)
-        elif self.prompt_format in ['bm25_retriever', 'rerank_retriever']:
+        else:
             retriever_name = self.prompt_format.split('_')[0]
             self.dataset = convert_jsonl_to_dataset_retrieved_psg(self.dataset_name, split, retriever_name)
         
@@ -194,8 +194,7 @@ class RAGDataset:
                     prompt_text = self.generate_prompt_wo_ctx(question)
                     return prompt_text, similarity_score
     
-        elif self.prompt_format in ['bm25_retriever', 'rerank_retriever']:
-            
+        else: # retrived dataset
             # selected_context = random.choice(example['ctxs'])
             selected_context = '\n'.join([ctx['context'] for ctx in example['ctxs'][:5]])
             sim_score = 1.0
@@ -203,8 +202,8 @@ class RAGDataset:
             
             return prompt_text, sim_score
         
-        else:
-            raise ValueError(f"Prompt format {self.prompt_format} not supported")
+        # else:
+        #     raise ValueError(f"Prompt format {self.prompt_format} not supported")
     
     def get_dataset(self, add_prompt=None):
         

@@ -40,16 +40,13 @@ def generation(args):
     
     
     # === Model definition ======================
-    print('a')
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=torch.float16,
         device_map="auto"
     )
-    print('b')
     # model.to(args.device)
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
-    print('c')
     
     if tokenizer.__class__.__name__ == 'LlamaTokenizer':
         #eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.']] + [29889]  # seems to be '.' as well
@@ -254,11 +251,11 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'q_positive', 'q_positive', 'q_negative'
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative'
     ])
     
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
