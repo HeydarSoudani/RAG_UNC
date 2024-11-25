@@ -117,6 +117,7 @@ venv.bak/
 
 __MACOSX
 .locks
+ckpts
 
 baselines/
 datasets/
