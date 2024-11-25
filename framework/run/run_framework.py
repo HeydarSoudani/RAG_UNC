@@ -22,7 +22,7 @@ from get_likelihoods_v2 import get_likelihoods
 
 from get_groundedness import get_groundedness
 
-from get_uncertainty import get_uncertainty
+# from get_uncertainty import get_uncertainty
 from get_correctness import get_correctness
 # from get_verification import get_verification
 from get_calibration_results import get_calibration_results
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     # generation(args)
     
     # Step 2: computing semantic similarities
-    get_similarity(args)   # this generates importance score
+    # get_similarity(args)   # this generates importance score
     # get_only_query_semantic(args)
     
     # Step 3: computing groundedness
@@ -100,11 +100,11 @@ if __name__ == "__main__":
     # get_uncertainty(args)
     
     # Step 5: computing correctness
-    get_correctness(args)
+    # get_correctness(args)
     
     # Step 6: computing results
     get_calibration_results(args)
-    get_axiomatic_results(args)
+    # get_axiomatic_results(args)
     
     
     # python framework/run/run_framework.py

@@ -20,8 +20,8 @@ def get_likelihoods(args):
     print(f"""
         Model name: {args.model}
         Dataset: {args.dataset}
-        Prompt format (main): {args.main_prompt_format}
-        Prompt format (secondry): {args.second_prompt_format}
+        Prompt (1st): {args.main_prompt_format}
+        Prompt (2ed): {args.second_prompt_format}
         Run id: {args.run_id}
         Seed: {args.seed}
     """.replace('   ', ''))
@@ -605,17 +605,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
+    parser.add_argument('--dataset', type=str, default='nq', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top5', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'

@@ -201,11 +201,15 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'

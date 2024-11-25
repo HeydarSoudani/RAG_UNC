@@ -74,7 +74,7 @@ def get_calibration_results(args):
         
         # 
         correctness_df = pd.DataFrame(correctness_results)
-        correctness_keys_to_use = ('id', 'bem_score', 'bert_score', 'exact_match')
+        correctness_keys_to_use = ('id', 'bem_score', 'bert_score', 'exact_match', 'rouge_score')
         correctness_small = dict((k, correctness_df[k]) for k in correctness_keys_to_use)
         correctness_df = pd.DataFrame.from_dict(correctness_small)
         
@@ -142,18 +142,23 @@ def get_calibration_results(args):
         correctness_results = {}
         correctness_results['selected_metric'] = args.accuracy_metric
         
-        if args.accuracy_metric in ['bem_score', 'rouge_score', 'gpt_score', 'exact_match']:
+        if args.accuracy_metric in ['bem_score', 'gpt_score', 'exact_match']:
             correctness_bin = (results[args.accuracy_metric] > args.roc_auc_threshold).astype('int') 
         elif args.accuracy_metric == 'bert_score':
             correctness_bin = (results[args.accuracy_metric].apply(lambda x: x['F1']) > args.roc_auc_threshold).astype('int') 
+        elif args.accuracy_metric == 'rouge_score':
+            correctness_bin = (results[args.accuracy_metric].apply(lambda x: x['rougeL']) > args.roc_auc_threshold).astype('int') 
         correctness_results['accuracy'] = correctness_bin.mean()
         
         # non-binarized accuracy
         correctness_results['exact_match_mean'] = results['exact_match'].mean()
         correctness_results['bem_score_mean'] = results['bem_score'].mean()
         correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
-        if args.accuracy_metric in ['bem_score', 'rouge_score', 'gpt_score']:
+        correctness_results['rougeL_score_mean'] = results['rouge_score'].apply(lambda x: x['rougeL']).mean()
+        if args.accuracy_metric in ['bem_score', 'gpt_score']:
             one_minus_correctness = 1 - results[args.accuracy_metric]
+        elif args.accuracy_metric == 'rouge_score':
+            one_minus_correctness = 1 - results[args.accuracy_metric].apply(lambda x: x['rougeL'])
         elif args.accuracy_metric == 'bert_score':
             one_minus_correctness = 1 - results[args.accuracy_metric].apply(lambda x: x['F1'])
         elif args.accuracy_metric == 'exact_match':
@@ -445,35 +450,34 @@ def get_calibration_results(args):
             return obj.tolist()
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
+
     with open(calibration_output_file, 'w') as file:
         json.dump(result_dict, file, indent=4, default=convert_to_serializable)
     
-    
-    ### ===========================================
-    ### ===========================================
-    # === Axiomatic runs ==========================
-    # print('\n')
 
-    
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
+    parser.add_argument('--dataset', type=str, default='nq', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative', 'bm25_retriever', 'rerank_retriever'
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
-        'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
+        'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
@@ -509,9 +513,6 @@ if __name__ == "__main__":
     get_calibration_results(args)
     
     # python framework/run/get_calibration_results.py
-    
-    
-    
     
     
     

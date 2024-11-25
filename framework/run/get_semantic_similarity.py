@@ -11,6 +11,7 @@ import pickle
 import logging
 import argparse
 from tqdm import tqdm
+from transformers import BertModel
 from transformers import BertTokenizerFast 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -30,10 +31,10 @@ def get_similarity(args):
     
     # === Define output files =============
     # === Read the generated data =========
-    model = args.model.split('/')[-1]
-    similarities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
+    model_ = args.model.split('/')[-1]
+    similarities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model_}_{args.temperature}_similarities_generation.pkl'
     # generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_generation.pkl'
-    generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
+    generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model_}_{args.temperature}_cleaned_generation.pkl'
     with open(generation_file, 'rb') as infile:
         sequences = pickle.load(infile)
 
@@ -42,6 +43,7 @@ def get_similarity(args):
 
     # === Load importance model ===========
     model_importance = torch.load('baselines/MARS/models/model_phrase.pth', map_location=args.device).to(args.device)
+    # model_importance = BertModel.from_pretrained('baselines/MARS/models/model_phrase.pth').to(args.device)
     tokenizer_importance = BertTokenizerFast.from_pretrained("bert-base-uncased") 
     
     # === Load semantic model =============
