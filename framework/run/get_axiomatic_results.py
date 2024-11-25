@@ -38,8 +38,9 @@ def get_axiomatic_results(args):
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
     similarity_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_similarity_output__sec_{args.second_prompt_format}.jsonl'
-    same_relation_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_same_relation_output__sec_{args.second_prompt_format}.json'
-    different_relation_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_different_relation_output__sec_{args.second_prompt_format}.json'
+    axioms123_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axioms123_output__sec_{args.second_prompt_format}.json'
+    axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axiom4_output__sec_{args.second_prompt_format}.json'
+    axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axiom5_output__sec_{args.second_prompt_format}.json'
     
     sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
     sequence_input_secondry = f'{base_dir_output}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
@@ -246,23 +247,28 @@ def get_axiomatic_results(args):
             #     print('5')
         return doc_exist, doc_not_exist
     
-    def get_nli_relations(relation, queries_list):
+    def get_nli_relations(axioms, queries_list):
         # Src: https://huggingface.co/vectara/hallucination_evaluation_model
         # Input: a list of pairs of (premise, hypothesis)
         # It returns a score between 0 and 1 for each pair where
         # 0 means that the hypothesis is not evidenced at all by the premise and
         # 1 means the hypothesis is fully supported by the premise.
         
-        if relation=="same":
-            input_file = same_relation_output_jsonl_file
-        elif relation=="different":
-            input_file = different_relation_output_jsonl_file
+        if axioms == "123":
+            results_file = axioms123_output_jsonl_file
+            sequences = sequences_main
+        elif axioms == "4":
+            results_file = axiom4_output_jsonl_file
+            sequences = sequences_main
+        elif axioms == "5":
+            results_file = axiom5_output_jsonl_file
+            sequences = sequences_secondry
         else:
             print(f"No valid axiom number !!!")
         
-        if os.path.isfile(input_file):
-            print(f"{input_file} exists.")
-            with open(input_file, 'r') as file:
+        if os.path.isfile(results_file):
+            print(f"{results_file} exists.")
+            with open(results_file, 'r') as file:
                 relation_queries = json.load(file) 
         else:
             relation_queries = {
@@ -272,7 +278,7 @@ def get_axiomatic_results(args):
             }
         
             with torch.no_grad():
-                for idx, sample in tqdm(enumerate(sequences_main)):
+                for idx, sample in tqdm(enumerate(sequences)):
                     id_ = sample['id']
                     
                     if id_ in queries_list:
@@ -344,11 +350,10 @@ def get_axiomatic_results(args):
             
             
             # Write to file 
-            with open(input_file, 'w') as file:
+            with open(results_file, 'w') as file:
                 json.dump(relation_queries, file, indent=4)
         
         return relation_queries
-
 
     # ======
     keys_mapping = {
@@ -402,12 +407,9 @@ def get_axiomatic_results(args):
         agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
     
     
-    ### ===========================================================
-    ### ===== Axioms: 1, 2, 3. Answers are same =================== 
     print("================= Axioms: 1, 2, 3 =================")
-    relation = 'same'
-    axioms_123 = get_nli_relations(relation, agree_list)
-    
+    axioms_num = '123'
+    axioms_123 = get_nli_relations(axioms_num, agree_list)
     print(f"Entailment:    {len(axioms_123['entailment'])} ({(len(axioms_123['entailment']) / len(sequences_main))*100:.2f}%)")
     print(f"Contradiction: {len(axioms_123['contradiction'])} ({len(axioms_123['contradiction']) / len(sequences_main)*100:.2f}%)")
     print(f"Neutral:       {len(axioms_123['neutral'])} ({len(axioms_123['neutral']) / len(sequences_main)*100:.2f}%)")
@@ -461,42 +463,38 @@ def get_axiomatic_results(args):
                 print('\n')
 
 
-    print("================= Axioms: 4, 5, 6 =================")
-    relation = 'different'
-    axioms_456 = get_nli_relations(relation, non_agree_list)
-    print(f"Entailment:    {len(axioms_456['entailment'])} ({(len(axioms_456['entailment']) / len(sequences_main))*100:.2f}%)")
-    print(f"Contradiction: {len(axioms_456['contradiction'])} ({len(axioms_456['contradiction']) / len(sequences_main)*100:.2f}%)")
-    print(f"Neutral:       {len(axioms_456['neutral'])} ({len(axioms_456['neutral']) / len(sequences_main)*100:.2f}%)")
+    print("================= Axiom: 4 =================")
+    axiom_num = '4'
+    axiom_4 = get_nli_relations(axiom_num, non_agree_list)
+    print(f"Entailment:    {len(axiom_4['entailment'])} ({(len(axiom_4['entailment']) / len(sequences_main))*100:.2f}%)")
+    # print(f"Contradiction: {len(axiom_4['contradiction'])} ({len(axiom_4['contradiction']) / len(sequences_main)*100:.2f}%)")
+    # print(f"Neutral:       {len(axiom_4['neutral'])} ({len(axiom_4['neutral']) / len(sequences_main)*100:.2f}%)")
     print('\n')
+    relation_key = 'entailment'
+    selected_list = axiom_4[relation_key]
+    selected_list_ = [tup[0] for tup in selected_list]
     
-    for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
-        
-        if uncertainty_model in ['PE', 'PE_MARS']:
-            result_df_main_prompt = result_df_main_filtered_pe
-            result_df_second_prompt = result_df_second_prompt_filtered_pe
-        elif uncertainty_model in ['SE', 'SE_MARS']:
-            result_df_main_prompt = result_df_main_filtered_se
-            result_df_second_prompt = result_df_second_prompt_filtered_se
-        
-        unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
-        unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
-    
-        # for relation_key in ['entailment', 'contradiction', 'neutral']:
-        relation_key = 'entailment'
-        selected_list = axioms_456[relation_key]
-        selected_list_ = [tup[0] for tup in selected_list]
-        
-        selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-        selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
-        
-        # 
-        _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
-        correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-        _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
-        correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-        
-        if len(selected_list) > 0:
-            # Axiom 4
+    if len(selected_list) > 0:
+        for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
+            
+            if uncertainty_model in ['PE', 'PE_MARS']:
+                result_df_main_prompt = result_df_main_filtered_pe
+                result_df_second_prompt = result_df_second_prompt_filtered_pe
+            elif uncertainty_model in ['SE', 'SE_MARS']:
+                result_df_main_prompt = result_df_main_filtered_se
+                result_df_second_prompt = result_df_second_prompt_filtered_se
+            
+            unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+
+            selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+            selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+            
+            _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
+            correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+            _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
+            correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+            
             uncertainty_main_prompt_values =  selected_main_prompt_df[unc_model_key_main_prompt]
             uncertainty_second_prompt_values = selected_main_prompt_df[unc_model_key_second_prompt]
             auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
@@ -506,9 +504,46 @@ def get_axiomatic_results(args):
             print(f"Acc. ({args.accuracy_metric}): {round(correctness_main_prompt.mean()*100, 2)}")
             print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
             print('\n')
+                
+    else: 
+        print(f"{relation_key} does not contain data!!!")
+        print('\n')
+
+
+    print("================= Axiom: 5 =================")
+    axiom_num = '5'
+    axiom_5 = get_nli_relations(axiom_num, non_agree_list)
+    print(f"Contradiction: {len(axiom_5['contradiction'])} ({len(axiom_5['contradiction']) / len(sequences_main)*100:.2f}%)")
+    # print(f"Entailment:    {len(axiom_5['entailment'])} ({(len(axiom_5['entailment']) / len(sequences_main))*100:.2f}%)")
+    # print(f"Neutral:       {len(axiom_4['neutral'])} ({len(axiom_4['neutral']) / len(sequences_main)*100:.2f}%)")
+    
+    print('\n')
+    relation_key = 'contradiction'
+    selected_list = axiom_5[relation_key]
+    selected_list_ = [tup[0] for tup in selected_list]
+    
+    if len(selected_list) > 0:
+        
+        for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
+        
+            if uncertainty_model in ['PE', 'PE_MARS']:
+                result_df_main_prompt = result_df_main_filtered_pe
+                result_df_second_prompt = result_df_second_prompt_filtered_pe
+            elif uncertainty_model in ['SE', 'SE_MARS']:
+                result_df_main_prompt = result_df_main_filtered_se
+                result_df_second_prompt = result_df_second_prompt_filtered_se
             
+            unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+
+            selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+            selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
             
-            # Axiom 5
+            _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
+            correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+            _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
+            correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+            
             uncertainty_main_prompt_values = selected_second_prompt_df[unc_model_key_second_prompt]
             uncertainty_second_prompt_values =  selected_second_prompt_df[unc_model_key_main_prompt]
             auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_main_prompt_values)
@@ -518,40 +553,39 @@ def get_axiomatic_results(args):
             print(f"Acc. ({args.accuracy_metric}): {round(correctness_second_prompt.mean()*100, 2)}")
             print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
             print('\n')
-                
-        else: 
-            print(f"{relation_key} does not contain data!!!")
-            print('\n')
 
+    else: 
+        print(f"{relation_key} does not contain data!!!")
+        print('\n')
 
-        # Axiom 6
-        relation_key = 'contradiction'
-        selected_list = axioms_456[relation_key]
-        selected_list_ = [tup[0] for tup in selected_list]
+    # Axiom 6
+    # relation_key = 'contradiction'
+    # selected_list = axioms_456[relation_key]
+    # selected_list_ = [tup[0] for tup in selected_list]
+    
+    # if len(selected_list) > 0:
+    #     axiom6_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+    #     axiom6_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
         
-        if len(selected_list) > 0:
-            axiom6_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-            axiom6_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+    #     _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(axiom6_main_prompt_df)
+    #     correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+    #     _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(axiom6_second_prompt_df)
+    #     correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+        
+    #     uncertainty_main_prompt_values =  axiom6_main_prompt_df[unc_model_key_main_prompt]
+    #     uncertainty_second_prompt_values = axiom6_second_prompt_df[unc_model_key_main_prompt]
+    #     auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
+    #     auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
             
-            _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(axiom6_main_prompt_df)
-            correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-            _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(axiom6_second_prompt_df)
-            correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-            
-            uncertainty_main_prompt_values =  axiom6_main_prompt_df[unc_model_key_main_prompt]
-            uncertainty_second_prompt_values = axiom6_second_prompt_df[unc_model_key_main_prompt]
-            auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-            auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
-                
-            print(f"{uncertainty_model}, Axiom 6: {relation_key}")
-            print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
-            print(f"Acc. ({args.accuracy_metric}):  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-            print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-            print('\n')
+    #     print(f"{uncertainty_model}, Axiom 6: {relation_key}")
+    #     print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
+    #     print(f"Acc. ({args.accuracy_metric}):  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
+    #     print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
+    #     print('\n')
 
-        else: 
-            print(f"{relation_key} does not contain data!!!")
-            print('\n')
+    # else: 
+    #     print(f"{relation_key} does not contain data!!!")
+    #     print('\n')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
