@@ -17,7 +17,7 @@ from sentence_transformers.cross_encoder import CrossEncoder
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from transformers import pipeline
 
-from minicheck.minicheck import MiniCheck
+# from minicheck.minicheck import MiniCheck
 
 
 from utils import set_seed, uncertainty_to_confidence_min_max
@@ -66,13 +66,13 @@ def get_axiomatic_results(args):
     # 2) MiniCheck (EMNLP24)
     # - MiniCheck: https://huggingface.co/lytang/MiniCheck-Flan-T5-Large
     # - pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
-    minicheck_factual_scorer = MiniCheck(model_name='flan-t5-large', cache_dir='./ckpts')
+    # minicheck_factual_scorer = MiniCheck(model_name='flan-t5-large', cache_dir='./ckpts')
     
     # 2) Hallucination Detector
     # - Vectara: https://huggingface.co/vectara/hallucination_evaluation_model
     # - It needs updated version of transformer: pip install --upgrade transformers
-    hallucination_detector = AutoModelForSequenceClassification.from_pretrained(
-        'vectara/hallucination_evaluation_model', trust_remote_code=True)
+    # hallucination_detector = AutoModelForSequenceClassification.from_pretrained(
+    #     'vectara/hallucination_evaluation_model', trust_remote_code=True)
 
     # 3) Long NLI: 
     # - Tasksource: https://huggingface.co/tasksource/deberta-base-long-nli
@@ -356,6 +356,7 @@ def get_axiomatic_results(args):
         return relation_queries
 
     # ======
+    uncertainty_methods = ['PE', 'SE'] # , 'PE_MARS', 'SE_MARS'
     keys_mapping = {
         'main_prompt': {
             'PE': 'average_predictive_entropy_main_prompt',
@@ -415,7 +416,7 @@ def get_axiomatic_results(args):
     print(f"Neutral:       {len(axioms_123['neutral'])} ({len(axioms_123['neutral']) / len(sequences_main)*100:.2f}%)")
     print('\n')
     
-    for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
+    for uncertainty_model in uncertainty_methods: 
         
         if uncertainty_model in ['PE', 'PE_MARS']:
             result_df_main_prompt = result_df_main_filtered_pe
@@ -445,8 +446,13 @@ def get_axiomatic_results(args):
                 confidence_main_prompt_values = uncertainty_to_confidence_min_max(uncertainty_main_prompt_values)
                 confidence_second_prompt_values = uncertainty_to_confidence_min_max(uncertainty_second_prompt_values)
                 
-                auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-                auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
+                if len(set(correctness_main_prompt_bin)) == 1:
+                    print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
+                    auroc_main_prompt = 0.5
+                    auroc_second_prompt = 0.5
+                else:
+                    auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
+                    auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
                 # ece_main_prompt = ece_estimate(correctness_main_prompt, confidence_main_prompt_values)
                 # ece_second_prompt = ece_estimate(correctness_second_prompt, confidence_second_prompt_values)
                 
@@ -475,7 +481,7 @@ def get_axiomatic_results(args):
     selected_list_ = [tup[0] for tup in selected_list]
     
     if len(selected_list) > 0:
-        for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
+        for uncertainty_model in uncertainty_methods:
             
             if uncertainty_model in ['PE', 'PE_MARS']:
                 result_df_main_prompt = result_df_main_filtered_pe
@@ -497,8 +503,14 @@ def get_axiomatic_results(args):
             
             uncertainty_main_prompt_values =  selected_main_prompt_df[unc_model_key_main_prompt]
             uncertainty_second_prompt_values = selected_main_prompt_df[unc_model_key_second_prompt]
-            auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-            auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_second_prompt_values)
+            
+            if len(set(correctness_main_prompt_bin)) == 1:
+                print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
+                auroc_main_prompt = 0.5
+                auroc_second_prompt = 0.5
+            else:
+                auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
+                auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_second_prompt_values)
             print(f"{uncertainty_model}, Axiom 4: {relation_key}")
             print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
             print(f"Acc. ({args.accuracy_metric}): {round(correctness_main_prompt.mean()*100, 2)}")
@@ -523,8 +535,7 @@ def get_axiomatic_results(args):
     selected_list_ = [tup[0] for tup in selected_list]
     
     if len(selected_list) > 0:
-        
-        for uncertainty_model in ['PE', 'SE']: # , 'PE_MARS', 'SE_MARS' 
+        for uncertainty_model in uncertainty_methods: 
         
             if uncertainty_model in ['PE', 'PE_MARS']:
                 result_df_main_prompt = result_df_main_filtered_pe
@@ -557,6 +568,7 @@ def get_axiomatic_results(args):
     else: 
         print(f"{relation_key} does not contain data!!!")
         print('\n')
+
 
     # Axiom 6
     # relation_key = 'contradiction'
