@@ -17,10 +17,10 @@ module load Python/3.10.4-GCCcore-11.3.0
 # srun python $HOME/RAG_UNC/processed_datasets/_corpus_preparation.py
 
 model="meta-llama/Llama-2-7b-chat-hf"
-dataset="nq"
-main_prompt_format="rerank_retriever_top5"
+dataset="trivia"
+main_prompt_format="bm25_retriever_top1"
 second_prompt_format="only_q"
-fraction_of_data_to_use=0.16
+fraction_of_data_to_use=0.12
 run_id="run_0"
 
 srun python $HOME/RAG_UNC/framework/run/run_framework.py \

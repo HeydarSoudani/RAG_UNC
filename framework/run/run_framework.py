@@ -14,8 +14,6 @@ from utils import set_seed
 from answers_generation import generation
 from get_semantic_similarity import get_similarity
 
-# from get_only_query_semantic import get_only_query_semantic
-
 # from get_likelihoods import get_likelihoods
 from get_probabilities import get_probability
 from get_likelihoods_v2 import get_likelihoods
@@ -88,23 +86,24 @@ if __name__ == "__main__":
     # generation(args)
     
     # Step 2: computing semantic similarities
+    # works with: pip install transformers==4.37.2
     # get_similarity(args)   # this generates importance score
-    # get_only_query_semantic(args)
     
     # Step 3: computing groundedness
-    get_groundedness(args)
+    # get_groundedness(args)
     
     # Step 4: computing likelihoods
-    get_probability(args)
-    get_likelihoods(args)
+    # get_probability(args)
+    # get_likelihoods(args)
     # get_uncertainty(args)
     
     # Step 5: computing correctness
-    # get_correctness(args)
+    get_correctness(args)
     
     # Step 6: computing results
     get_calibration_results(args)
-    # get_axiomatic_results(args)
+    # for long-NLI: pip install --upgrade transformers
+    get_axiomatic_results(args)
     
     
     # python framework/run/run_framework.py
