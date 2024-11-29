@@ -20,7 +20,7 @@ from transformers import pipeline
 # from minicheck.minicheck import MiniCheck
 
 
-from utils import set_seed, uncertainty_to_confidence_min_max
+from framework.utils.utils import set_seed, uncertainty_to_confidence_min_max
 from metrics.calibration import ECE_estimate
 
 def get_axiomatic_results(args):

@@ -11,7 +11,7 @@ import argparse
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from utils import set_seed
+from framework.utils.utils import set_seed
 from metrics.correctness import BemScore, BertScore, ExactMatch, RougeScore, LLamaScore
 
 
@@ -50,9 +50,8 @@ def get_correctness(args):
     # === Main loop =================================
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
     correctness_sequences = []
-    correctness_sequences_jsl = []
-    with open(correctness_output_jsonl_file, 'w') as jl_ofile:
         
+    with open(correctness_output_jsonl_file, 'w') as jl_ofile:    
         for idx, sample in tqdm(enumerate(sequences)):
             question_id = sample['id']
             question = sample['question']

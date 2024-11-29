@@ -15,7 +15,7 @@ import numpy as np
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from utils import set_seed
+from framework.utils.utils import set_seed
 from dataset import single_hop
 
 

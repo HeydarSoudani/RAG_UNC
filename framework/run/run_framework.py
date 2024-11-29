@@ -10,7 +10,7 @@ import random
 import numpy as np
 import argparse, json
 
-from utils import set_seed
+from framework.utils.utils import set_seed
 from answers_generation import generation
 from get_semantic_similarity import get_similarity
 
@@ -19,6 +19,8 @@ from get_probabilities import get_probability
 from get_likelihoods_v2 import get_likelihoods
 
 from get_groundedness import get_groundedness
+
+from get_blackbox_uncertainty import get_bb_uncertainty
 
 # from get_uncertainty import get_uncertainty
 from get_correctness import get_correctness
@@ -82,27 +84,31 @@ if __name__ == "__main__":
     
     set_seed(args.seed)
     
-    # Step 1: answer generation & cleaning
-    # generation(args)
     
-    # Step 2: computing semantic similarities
-    # works with: pip install transformers==4.37.2
-    # get_similarity(args)   # this generates importance score
+    ### === Phase 1: answer generation & cleaning
+    generation(args)
     
-    # Step 3: computing groundedness
+    
+    ### === Phase 2: Uncertainty computation
+    
+    ## = Method(s) 1: PE, SE, +MARS 
+    # get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
     # get_groundedness(args)
-    
-    # Step 4: computing likelihoods
     # get_probability(args)
     # get_likelihoods(args)
-    # get_uncertainty(args)
     
-    # Step 5: computing correctness
+    
+    ## = Method 2: SAR
+    
+    
+    
+    ## = Method 3: Similarity-based
+    get_bb_uncertainty(args)
+    
+    
+    ### === Phase 3: correctness and results
     get_correctness(args)
-    
-    # Step 6: computing results
     get_calibration_results(args)
-    # for long-NLI: pip install --upgrade transformers
     get_axiomatic_results(args)
     
     
@@ -111,6 +117,8 @@ if __name__ == "__main__":
 
 
 
+
+# get_uncertainty(args)
 
 
 

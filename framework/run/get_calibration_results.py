@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
 
 
-from utils import set_seed, uncertainty_to_confidence_min_max, uncertainty_to_confidence_gaussian, uncertainty_to_confidence_sigmoid, uncertainty_to_confidence_tanh
+from utils.utils import set_seed, uncertainty_to_confidence_min_max, uncertainty_to_confidence_gaussian, uncertainty_to_confidence_sigmoid, uncertainty_to_confidence_tanh
 from metrics.calibration import plugin_RCE_est, indication_diagram
 from metrics.calibration import ECE_estimate
 
@@ -42,10 +42,12 @@ def get_calibration_results(args):
     
     def create_result_df(prompt_format):
         
+        generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
         similarities_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
         likelihoods_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_generation.pkl'
+        bb_uncertainty_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_bb_uncertainty.pkl'
         correctness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
-        generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
+        
         # groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
         
         with open(generation_file, 'rb') as infile:
@@ -54,6 +56,8 @@ def get_calibration_results(args):
             similarities_dict = pickle.load(f)
         with open(likelihoods_input_file, 'rb') as f:
             likelihoods_results  = pickle.load(f)
+        with open(bb_uncertainty_input_file, 'rb') as f:
+            bb_uncertainty_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
         # with open(groundedness_input_file, 'rb') as f:
@@ -102,10 +106,16 @@ def get_calibration_results(args):
         likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
         
         # 
+        bb_uncertainty_df = pd.DataFrame(bb_uncertainty_results)
+        bb_uncertainty_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
+        bb_uncertainty_small = dict((k, bb_uncertainty_df[k]) for k in bb_uncertainty_keys_to_use)
+        bb_uncertainty_df = pd.DataFrame.from_dict(bb_uncertainty_small)
+        
+        # 
         # groundedness_df = pd.DataFrame(groundedness_results)
 
         # 
-        result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id') # .merge(groundedness_df, on='id')
+        result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id').merge(bb_uncertainty_df, on='id') # .merge(groundedness_df, on='id')
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
@@ -121,7 +131,11 @@ def get_calibration_results(args):
             'PE': 'average_predictive_entropy_main_prompt',
             'SE': 'predictive_entropy_over_concepts_main_prompt',
             'PE_MARS': 'average_predictive_entropy_importance_max_main_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_main_prompt'
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_main_prompt',
+            'EigV': 'spectral_u',
+            'Ecc': 'ecc_u',
+            'Deg': 'degree_u',
+            
         },
         'second_prompt': {
             'PE': 'average_predictive_entropy_second_prompt',
@@ -310,6 +324,8 @@ def get_calibration_results(args):
             result_df = result_df_main_filtered_pe
         elif uncertainty_model in ['SE', 'SE_MARS']:
             result_df = result_df_main_filtered_se
+        else:
+            result_df = result_df_main
         
         correctness_results, correctness_bin, one_minus_correctness = get_correctness(result_df) 
         correctness = 1 - np.array(one_minus_correctness)
@@ -361,16 +377,16 @@ def get_calibration_results(args):
         # coef_2_ = coef_2 / (coef_1+coef_2)
         
         ### === For second prompt
-        unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
-        uncertainty_values_second_prompt = result_df[f"{unc_model_key_second_prompt}"]        
-        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_second_prompt)
-        confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt)
-        ece_test2 = ece_estimate(correctness, confidence_values_second_prompt)
-        plot_correctness_vs_uncertainty(
-            correctness, uncertainty_values_second_prompt,
-            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-            prefix=f"{uncertainty_model}_second_prompt", num_bins=40
-        )
+        # unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+        # uncertainty_values_second_prompt = result_df[f"{unc_model_key_second_prompt}"]        
+        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_second_prompt)
+        # confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt)
+        # ece_test2 = ece_estimate(correctness, confidence_values_second_prompt)
+        # plot_correctness_vs_uncertainty(
+        #     correctness, uncertainty_values_second_prompt,
+        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+        #     prefix=f"{uncertainty_model}_second_prompt", num_bins=40
+        # )
         
         ### === For third prompt
         # unc_model_key_third_prompt = keys_mapping['third_prompt'][uncertainty_model]
@@ -390,38 +406,38 @@ def get_calibration_results(args):
         ### === Combime first & second prompts 
         
         # 1)
-        uncertainty_multiply_values = uncertainty_values * uncertainty_values_second_prompt
-        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_multiply_values)
-        confidence_multiply_values = uncertainty_to_confidence_min_max(uncertainty_multiply_values)
-        ece_test2 = ece_estimate(correctness, confidence_multiply_values)
-        plot_correctness_vs_uncertainty(
-            correctness, uncertainty_multiply_values,
-            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-            prefix=f"{uncertainty_model}_multiply", num_bins=40
-        )
+        # uncertainty_multiply_values = uncertainty_values * uncertainty_values_second_prompt
+        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_multiply_values)
+        # confidence_multiply_values = uncertainty_to_confidence_min_max(uncertainty_multiply_values)
+        # ece_test2 = ece_estimate(correctness, confidence_multiply_values)
+        # plot_correctness_vs_uncertainty(
+        #     correctness, uncertainty_multiply_values,
+        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+        #     prefix=f"{uncertainty_model}_multiply", num_bins=40
+        # )
         
         # 2)
-        uncertainty_sum_values = (uncertainty_values + uncertainty_values_second_prompt)/2
-        # uncertainty_sum_values = (coef_1_*uncertainty_values + coef_2_*uncertainty_values_second_prompt)/2
-        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_sum_values)
-        confidence_sum_values = uncertainty_to_confidence_min_max(uncertainty_sum_values)
-        ece_test2 = ece_estimate(correctness, confidence_sum_values)
-        plot_correctness_vs_uncertainty(
-            correctness, uncertainty_sum_values,
-            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-            prefix=f"{uncertainty_model}_sum", num_bins=40
-        )
+        # uncertainty_sum_values = (uncertainty_values + uncertainty_values_second_prompt)/2
+        # # uncertainty_sum_values = (coef_1_*uncertainty_values + coef_2_*uncertainty_values_second_prompt)/2
+        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_sum_values)
+        # confidence_sum_values = uncertainty_to_confidence_min_max(uncertainty_sum_values)
+        # ece_test2 = ece_estimate(correctness, confidence_sum_values)
+        # plot_correctness_vs_uncertainty(
+        #     correctness, uncertainty_sum_values,
+        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+        #     prefix=f"{uncertainty_model}_sum", num_bins=40
+        # )
         
         # 3)
-        uncertainty_abs_values = abs(uncertainty_values - uncertainty_values_second_prompt)
-        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_abs_values)
-        confidence_abs_values = uncertainty_to_confidence_min_max(uncertainty_abs_values)
-        ece_test2 = ece_estimate(correctness, confidence_abs_values)
-        plot_correctness_vs_uncertainty(
-            correctness, uncertainty_abs_values,
-            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-            prefix=f"{uncertainty_model}_abs", num_bins=40
-        )
+        # uncertainty_abs_values = abs(uncertainty_values - uncertainty_values_second_prompt)
+        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_abs_values)
+        # confidence_abs_values = uncertainty_to_confidence_min_max(uncertainty_abs_values)
+        # ece_test2 = ece_estimate(correctness, confidence_abs_values)
+        # plot_correctness_vs_uncertainty(
+        #     correctness, uncertainty_abs_values,
+        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+        #     prefix=f"{uncertainty_model}_abs", num_bins=40
+        # )
         
         # # 4)
         # uncertainty_sum_values = 0.5*uncertainty_values + 0.4*uncertainty_values_second_prompt + 0.1*uncertainty_values_third_prompt
@@ -436,7 +452,7 @@ def get_calibration_results(args):
         
 
     result_dict = {}
-    for uncertainty_model in ['PE', 'SE']: #, 'PE_MARS', 'SE_MARS'
+    for uncertainty_model in ['PE', 'SE', 'EigV', 'Ecc', 'Deg']: #, 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
         run_calibration_metrics(uncertainty_model)
     
     ### === Save the calibration result ============
@@ -460,13 +476,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -476,7 +492,7 @@ if __name__ == "__main__":
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)

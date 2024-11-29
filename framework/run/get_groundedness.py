@@ -12,7 +12,7 @@ import argparse
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from utils import set_seed
+from framework.utils.utils import set_seed
 
 def get_groundedness(args):
     print("\n--- Step 3: Get Groundedness ...")
