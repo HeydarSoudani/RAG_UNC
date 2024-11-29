@@ -13,7 +13,7 @@ import argparse
 from tqdm import tqdm
 from transformers import BertModel
 from transformers import BertTokenizerFast 
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
 
 from utils import set_seed
 
@@ -46,7 +46,12 @@ def get_similarity(args):
     # model_importance = BertModel.from_pretrained('baselines/MARS/models/model_phrase.pth').to(args.device)
     tokenizer_importance = BertTokenizerFast.from_pretrained("bert-base-uncased") 
     
+    
+    
     # === Load semantic model =============
+    # config = AutoConfig.from_pretrained("microsoft/deberta-large-mnli")
+    # print(config.label2id)
+    # {'CONTRADICTION': 0, 'NEUTRAL': 1, 'ENTAILMENT': 2}
     semantic_tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-large-mnli")
     semantic_model = AutoModelForSequenceClassification.from_pretrained("microsoft/deberta-large-mnli").to(args.device)
 
@@ -248,7 +253,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -274,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
-    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--run_id', type=str, default='run_1')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

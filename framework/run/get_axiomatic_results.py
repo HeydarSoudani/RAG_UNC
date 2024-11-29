@@ -356,7 +356,7 @@ def get_axiomatic_results(args):
         return relation_queries
 
     # ======
-    uncertainty_methods = ['PE', 'SE'] # , 'PE_MARS', 'SE_MARS'
+    uncertainty_methods = ['PE', 'SE'] #  'PE_MARS', 'SE_MARS'
     keys_mapping = {
         'main_prompt': {
             'PE': 'average_predictive_entropy_main_prompt',
@@ -407,8 +407,8 @@ def get_axiomatic_results(args):
         similarity_model.model.to(args.device)
         agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
     
-    
-    print("================= Axioms: 1, 2, 3 =================")
+    # === Main Computation ========================
+    # print("================= Axioms: 1, 2, 3 ==========")
     axioms_num = '123'
     axioms_123 = get_nli_relations(axioms_num, agree_list)
     print(f"Entailment:    {len(axioms_123['entailment'])} ({(len(axioms_123['entailment']) / len(sequences_main))*100:.2f}%)")
@@ -469,106 +469,138 @@ def get_axiomatic_results(args):
                 print('\n')
 
 
-    print("================= Axiom: 4 =================")
+    # print("================= Axiom: 4 =================")
     axiom_num = '4'
     axiom_4 = get_nli_relations(axiom_num, non_agree_list)
-    print(f"Entailment:    {len(axiom_4['entailment'])} ({(len(axiom_4['entailment']) / len(sequences_main))*100:.2f}%)")
-    # print(f"Contradiction: {len(axiom_4['contradiction'])} ({len(axiom_4['contradiction']) / len(sequences_main)*100:.2f}%)")
-    # print(f"Neutral:       {len(axiom_4['neutral'])} ({len(axiom_4['neutral']) / len(sequences_main)*100:.2f}%)")
-    print('\n')
-    relation_key = 'entailment'
-    selected_list = axiom_4[relation_key]
-    selected_list_ = [tup[0] for tup in selected_list]
+    # print(f"Entailment:    {len(axiom_4['entailment'])} ({(len(axiom_4['entailment']) / len(sequences_main))*100:.2f}%)")
+    # # print(f"Contradiction: {len(axiom_4['contradiction'])} ({len(axiom_4['contradiction']) / len(sequences_main)*100:.2f}%)")
+    # # print(f"Neutral:       {len(axiom_4['neutral'])} ({len(axiom_4['neutral']) / len(sequences_main)*100:.2f}%)")
+    # print('\n')
+    # relation_key = 'entailment'
+    # selected_list = axiom_4[relation_key]
+    # selected_list_ = [tup[0] for tup in selected_list]
     
-    if len(selected_list) > 0:
-        for uncertainty_model in uncertainty_methods:
+    # if len(selected_list) > 0:
+    #     for uncertainty_model in uncertainty_methods:
             
-            if uncertainty_model in ['PE', 'PE_MARS']:
-                result_df_main_prompt = result_df_main_filtered_pe
-                result_df_second_prompt = result_df_second_prompt_filtered_pe
-            elif uncertainty_model in ['SE', 'SE_MARS']:
-                result_df_main_prompt = result_df_main_filtered_se
-                result_df_second_prompt = result_df_second_prompt_filtered_se
+    #         if uncertainty_model in ['PE', 'PE_MARS']:
+    #             result_df_main_prompt = result_df_main_filtered_pe
+    #             result_df_second_prompt = result_df_second_prompt_filtered_pe
+    #         elif uncertainty_model in ['SE', 'SE_MARS']:
+    #             result_df_main_prompt = result_df_main_filtered_se
+    #             result_df_second_prompt = result_df_second_prompt_filtered_se
             
-            unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
-            unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+    #         unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
+    #         unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
 
-            selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-            selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+    #         selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+    #         selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
             
-            _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
-            correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-            _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
-            correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+    #         _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
+    #         correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+    #         _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
+    #         correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
             
-            uncertainty_main_prompt_values =  selected_main_prompt_df[unc_model_key_main_prompt]
-            uncertainty_second_prompt_values = selected_main_prompt_df[unc_model_key_second_prompt]
+    #         uncertainty_main_prompt_values =  selected_main_prompt_df[unc_model_key_main_prompt]
+    #         uncertainty_second_prompt_values = selected_main_prompt_df[unc_model_key_second_prompt]
             
-            if len(set(correctness_main_prompt_bin)) == 1:
-                print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
-                auroc_main_prompt = 0.5
-                auroc_second_prompt = 0.5
-            else:
-                auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-                auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_second_prompt_values)
-            print(f"{uncertainty_model}, Axiom 4: {relation_key}")
-            print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
-            print(f"Acc. ({args.accuracy_metric}): {round(correctness_main_prompt.mean()*100, 2)}")
-            print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-            print('\n')
+    #         if len(set(correctness_main_prompt_bin)) == 1:
+    #             print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
+    #             auroc_main_prompt = 0.5
+    #             auroc_second_prompt = 0.5
+    #         else:
+    #             auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
+    #             auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_second_prompt_values)
+    #         print(f"{uncertainty_model}, Axiom 4: {relation_key}")
+    #         print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
+    #         print(f"Acc. ({args.accuracy_metric}): {round(correctness_main_prompt.mean()*100, 2)}")
+    #         print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
+    #         print('\n')
                 
-    else: 
-        print(f"{relation_key} does not contain data!!!")
-        print('\n')
+    # else: 
+    #     print(f"{relation_key} does not contain data!!!")
+    #     print('\n')
 
 
-    print("================= Axiom: 5 =================")
-    axiom_num = '5'
-    axiom_5 = get_nli_relations(axiom_num, non_agree_list)
-    print(f"Contradiction: {len(axiom_5['contradiction'])} ({len(axiom_5['contradiction']) / len(sequences_main)*100:.2f}%)")
-    # print(f"Entailment:    {len(axiom_5['entailment'])} ({(len(axiom_5['entailment']) / len(sequences_main))*100:.2f}%)")
-    # print(f"Neutral:       {len(axiom_4['neutral'])} ({len(axiom_4['neutral']) / len(sequences_main)*100:.2f}%)")
+    # print("================= Axiom: 5 =================")
+    # axiom_num = '5'
+    # axiom_5 = get_nli_relations(axiom_num, non_agree_list)
+    # print(f"Contradiction: {len(axiom_5['contradiction'])} ({len(axiom_5['contradiction']) / len(sequences_main)*100:.2f}%)")
+    # # print(f"Entailment:    {len(axiom_5['entailment'])} ({(len(axiom_5['entailment']) / len(sequences_main))*100:.2f}%)")
+    # # print(f"Neutral:       {len(axiom_4['neutral'])} ({len(axiom_4['neutral']) / len(sequences_main)*100:.2f}%)")
     
-    print('\n')
-    relation_key = 'contradiction'
-    selected_list = axiom_5[relation_key]
-    selected_list_ = [tup[0] for tup in selected_list]
+    # print('\n')
+    # relation_key = 'contradiction'
+    # selected_list = axiom_5[relation_key]
+    # selected_list_ = [tup[0] for tup in selected_list]
     
-    if len(selected_list) > 0:
-        for uncertainty_model in uncertainty_methods: 
+    # if len(selected_list) > 0:
+    #     for uncertainty_model in uncertainty_methods: 
         
-            if uncertainty_model in ['PE', 'PE_MARS']:
-                result_df_main_prompt = result_df_main_filtered_pe
-                result_df_second_prompt = result_df_second_prompt_filtered_pe
-            elif uncertainty_model in ['SE', 'SE_MARS']:
-                result_df_main_prompt = result_df_main_filtered_se
-                result_df_second_prompt = result_df_second_prompt_filtered_se
+    #         if uncertainty_model in ['PE', 'PE_MARS']:
+    #             result_df_main_prompt = result_df_main_filtered_pe
+    #             result_df_second_prompt = result_df_second_prompt_filtered_pe
+    #         elif uncertainty_model in ['SE', 'SE_MARS']:
+    #             result_df_main_prompt = result_df_main_filtered_se
+    #             result_df_second_prompt = result_df_second_prompt_filtered_se
             
-            unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
-            unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+    #         unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
+    #         unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
 
-            selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-            selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+    #         selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+    #         selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
             
-            _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
-            correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-            _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
-            correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+    #         _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
+    #         correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+    #         _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
+    #         correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
             
-            uncertainty_main_prompt_values = selected_second_prompt_df[unc_model_key_second_prompt]
-            uncertainty_second_prompt_values =  selected_second_prompt_df[unc_model_key_main_prompt]
-            auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_main_prompt_values)
-            auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
-            print(f"{uncertainty_model}, Axiom 5: {relation_key}")
-            print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
-            print(f"Acc. ({args.accuracy_metric}): {round(correctness_second_prompt.mean()*100, 2)}")
-            print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-            print('\n')
+    #         uncertainty_main_prompt_values = selected_second_prompt_df[unc_model_key_second_prompt]
+    #         uncertainty_second_prompt_values =  selected_second_prompt_df[unc_model_key_main_prompt]
+    #         auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_main_prompt_values)
+    #         auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
+    #         print(f"{uncertainty_model}, Axiom 5: {relation_key}")
+    #         print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
+    #         print(f"Acc. ({args.accuracy_metric}): {round(correctness_second_prompt.mean()*100, 2)}")
+    #         print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
+    #         print('\n')
 
-    else: 
-        print(f"{relation_key} does not contain data!!!")
-        print('\n')
+    # else: 
+    #     print(f"{relation_key} does not contain data!!!")
+    #     print('\n')
 
+
+    # print("================= Axiom: 6 =================")
+    # selected_list_1 = axioms_123['entailment']
+    # selected_list_2 = axiom_4['entailment']
+    # selected_list_1_ = [tup[0] for tup in selected_list_1]
+    # selected_list_2_ = [tup[0] for tup in selected_list_2]
+    
+    # if len(selected_list_1) > 0:
+    #     for uncertainty_model in uncertainty_methods:
+            
+    #         if uncertainty_model in ['PE', 'PE_MARS']:
+    #             result_df_main_prompt = result_df_main_filtered_pe
+    #             result_df_second_prompt = result_df_second_prompt_filtered_pe
+    #         elif uncertainty_model in ['SE', 'SE_MARS']:
+    #             result_df_main_prompt = result_df_main_filtered_se
+    #             result_df_second_prompt = result_df_second_prompt_filtered_se
+    
+    #         unc_model_key_main_prompt = keys_mapping['main_prompt'][uncertainty_model]
+    #         # unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+
+    #         selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_1_)]
+    #         selected_second_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_2_)]
+            
+    #         uncertainty_main_prompt_values = selected_main_prompt_df[unc_model_key_main_prompt]
+    #         uncertainty_second_prompt_values =  selected_second_prompt_df[unc_model_key_main_prompt]
+            
+    #         print(f"{uncertainty_model}, Axiom 6")
+    #         print(f"Uncertainty: {uncertainty_second_prompt_values.mean():.3f} -> {uncertainty_main_prompt_values.mean():.3f}")
+    #         print('\n')
+    # else: 
+    #     # print(f"{relation_key} does not contain data!!!")
+    #     print('\n')
 
     # Axiom 6
     # relation_key = 'contradiction'
@@ -609,7 +641,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
