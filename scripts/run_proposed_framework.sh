@@ -18,7 +18,7 @@ module load Python/3.10.4-GCCcore-11.3.0
 
 model="meta-llama/Llama-2-7b-chat-hf"
 dataset="trivia"
-main_prompt_format="bm25_retriever_top1"
+main_prompt_format="rerank_retriever_top1"
 second_prompt_format="only_q"
 fraction_of_data_to_use=0.12
 run_id="run_0"

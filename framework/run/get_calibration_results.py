@@ -466,7 +466,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
