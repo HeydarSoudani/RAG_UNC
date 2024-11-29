@@ -15,7 +15,7 @@ from transformers import BertModel
 from transformers import BertTokenizerFast 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
 
-from utils import set_seed
+from framework.utils.utils import set_seed
 
 
 def get_similarity(args):
@@ -203,6 +203,7 @@ def get_similarity(args):
                     reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
                     reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
 
+                    # Main code:
                     deberta_prediction = 1
                     if 0 in predicted_label or 0 in reverse_predicted_label:
                         has_semantically_different_answers = True
@@ -211,6 +212,15 @@ def get_similarity(args):
                         semantic_set_ids[unique_generated_texts[j]] = semantic_set_ids[unique_generated_texts[i]]
                         clusterable = True
 
+                    # My code:
+                    # deberta_prediction = 0
+                    # if 2 in predicted_label or 2 in reverse_predicted_label:
+                    #     semantic_set_ids[unique_generated_texts[j]] = semantic_set_ids[unique_generated_texts[i]]
+                    #     deberta_prediction = 1
+                    #     clusterable = True
+                    # else:
+                    #     has_semantically_different_answers = True
+                        
                     deberta_predictions.append([unique_generated_texts[i], unique_generated_texts[j], deberta_prediction])
 
             if clusterable == True: 
@@ -253,7 +263,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

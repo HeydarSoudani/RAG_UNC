@@ -11,7 +11,7 @@ import logging
 import argparse
 import numpy as np
 
-from utils import set_seed
+from framework.utils.utils import set_seed
 
 
 def get_uncertainty(args):
