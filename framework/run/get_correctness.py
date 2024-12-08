@@ -11,7 +11,7 @@ import argparse
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from framework.utils.utils import set_seed
+from utils.utils import set_seed
 from metrics.correctness import BemScore, BertScore, ExactMatch, RougeScore, LLamaScore
 
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',

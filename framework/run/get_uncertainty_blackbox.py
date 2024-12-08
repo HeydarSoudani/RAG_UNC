@@ -3,22 +3,21 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import json
 import torch
 import pickle
-import logging
 import argparse
 import numpy as np
 from tqdm import tqdm
+import torch.nn as nn
 from transformers import pipeline
+from transformers import CLIPProcessor, CLIPModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+import utils.clustering as pc
 from utils.utils import set_seed
-import utils.clustering as pc 
 
-
-def get_bb_uncertainty(args):
+def get_uncertainty_bb(args):
     print("\n--- Phase 2: Get BB Uncertainty ...")
     print(f"""
         Model name: {args.model}
@@ -31,9 +30,12 @@ def get_bb_uncertainty(args):
     
     # === Define IN/OUT files ========================
     model = args.model.split('/')[-1]
-    generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
-    uncertainty_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_bb_uncertainty.pkl'
-    uncertainty_output_jsonl_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_bb_uncertainty.jsonl'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}'
+    generation_file = f'{base_dir}/{model}_{args.temperature}_cleaned_generation.pkl'
+    uncertainty_output_file = f'{base_dir}/{model}_{args.temperature}_uncertainty_bb_generation.pkl'
+    uncertainty_output_jsonl_file = f'{base_dir}/components_output/{model}_{args.temperature}_uncertainty_bb_generation.jsonl'
+    os.makedirs(f'{base_dir}/components_output', exist_ok=True)
+
     
     with open(generation_file, 'rb') as infile:
         sequences = pickle.load(infile)
@@ -82,6 +84,60 @@ def get_bb_uncertainty(args):
                 'pred': logits.cpu()
             }
     
+    # TODO: replace CLIP with NLI
+    # Ref: https://github.com/AoShuang92/css_uq_llms/blob/main/UQ-CSS/models/_load_model.py
+    class CLIPModel_Text(nn.Module):
+        def __init__(self, device):
+            super(CLIPModel_Text, self).__init__()
+            model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+            self.config = model.config
+            self.text_model = model.text_model
+            self.text_projection = model.text_projection
+            self.logit_scale = model.logit_scale
+            self.device= device
+
+        def forward(
+            self,
+            input_ids = None,
+            attention_mask = None,
+            position_ids = None,
+            return_loss = None,
+            output_attentions = None,
+            output_hidden_states = None,
+            return_dict = None,
+        ):
+
+            output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+            output_hidden_states = (output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states)
+
+            text_outputs = self.text_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+
+            text_embeds = text_outputs[1]
+            text_embeds = self.text_projection(text_embeds)
+
+            # normalized features
+            text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
+            # print('text_embeds',text_embeds.shape)
+
+            # cosine similarity as logits
+            # prob_per_pair1 = text_embeds[0] * text_embeds[1] #torch.mm(text_embeds[0], text_embeds[1]) #* logit_scale\
+            # prob_per_pair2 = text_embeds[2] * text_embeds[3]
+
+            all_prob_pairs = []
+            for i in range(int(text_embeds.shape[0]/2)):
+                i = 2*i
+                prob_per_pair_ = text_embeds[i] * text_embeds[i+1]
+                all_prob_pairs.append(prob_per_pair_)
+
+            return torch.stack(all_prob_pairs, dim = 0)
+
     class BlackBox():
         def __init__(self):
             return NotImplementedError
@@ -174,6 +230,9 @@ def get_bb_uncertainty(args):
             batch_W = [pc.get_affinity_mat(sim_mat, self.affinity_mode) for sim_mat in batch_sim_mats]
             batch_Cs = [np.mean(W, axis=1) for W in batch_W]
             batch_U = [1/W.shape[0]-np.sum(W)/W.shape[0]**2 for W in batch_W]
+            # print(batch_W)
+            # print(batch_Cs)
+            # print(batch_U)
             return batch_U, batch_Cs, batch_sim_mats
 
     class SpectralEigv(BlackBox):
@@ -194,8 +253,7 @@ def get_bb_uncertainty(args):
                                                     cluster=False, temperature=self.temperature)
             return [clusterer.get_eigvs(_).clip(0 if self.adjust else -1).sum() for _ in sim_mats], None, sim_mats
 
-    
-    ### === Main loop ==================================
+    # === Main loop ==================================
     ECC = Eccentricity(affinity_mode=args.affinity_mode, device=args.device)
     DEGREE = Degree(affinity_mode=args.affinity_mode, device=args.device, semantic_model=ECC.sm)
     SPECTRAL = SpectralEigv(affinity_mode=args.affinity_mode, device=args.device, semantic_model=ECC.sm)
@@ -204,24 +262,28 @@ def get_bb_uncertainty(args):
     with open(uncertainty_output_jsonl_file, 'w') as jl_ofile:
         for idx, sample in tqdm(enumerate(sequences)):
             
-            # if idx == 10:
+            # if idx == 1:
             #     break
             
             question_id = sample['id']
             question = sample['question']
             reference_answers = sample['answers']
-            generations = sample['generated_texts']
-            
+            generations = sample['cleaned_generated_texts']
+            # print(question_id)
             unc_seq_dict = {
                 'id': question_id,
                 'question': question,
                 'answers': reference_answers,
-                'generations': sample['generated_texts'],
+                'generations': generations,
             }
             
             ecc_u, ecc_c, sim_mats = ECC.compute_scores([""], [generations])
             degree_u, degree_c, sim_mats = DEGREE.compute_scores([""], [generations], batch_sim_mats=sim_mats)
             spectral_u, spectral_c, sim_mats = SPECTRAL.compute_scores([""], [generations], sim_mats=sim_mats)
+            
+            # print(sim_mats)
+            # print(degree_u)
+            
             unc_seq_dict['degree_u'] = np.float64(degree_u[0])
             unc_seq_dict['ecc_u'] = np.float64(ecc_u[0])
             unc_seq_dict['spectral_u'] = np.float64(spectral_u[0])
@@ -236,7 +298,7 @@ def get_bb_uncertainty(args):
                 'spectral_u': unc_seq_dict['spectral_u'],
                 'question': question,
                 'answers': reference_answers,
-                'generated_texts': sample['generated_texts'],
+                'generated_texts': generations,
             }
             jl_ofile.write(json.dumps(bb_unc_sequence_jsl) + '\n')
 
@@ -250,18 +312,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -282,8 +344,6 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
-    
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
@@ -302,6 +362,6 @@ if __name__ == "__main__":
         args.second_prompt_format == 'only_q'
     
     set_seed(args.seed)
-    get_bb_uncertainty(args)
+    get_uncertainty_bb(args)
     
-    # python framework/run/get_blackbox_uncertainty.py
+    # python framework/run/get_uncertainty_blackbox.py

@@ -3,20 +3,16 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import json
 import torch
-import random
 import pickle
 import sklearn
 import argparse
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import sklearn.metrics
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
-
 
 from utils.utils import set_seed, uncertainty_to_confidence_min_max, uncertainty_to_confidence_gaussian, uncertainty_to_confidence_sigmoid, uncertainty_to_confidence_tanh
 from metrics.calibration import plugin_RCE_est, indication_diagram
@@ -37,27 +33,26 @@ def get_calibration_results(args):
     # === Define output files ===================
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
-    calibration_output_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_calibration_results.jsonl'
-
+    calibration_output_file = f'{base_dir_output}/{args.main_prompt_format}/calibration_results/{model}_{args.temperature}_calibration_results.jsonl'
+    os.makedirs(calibration_output_file, exist_ok=True)
     
     def create_result_df(prompt_format):
         
         generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
         similarities_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-        likelihoods_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_generation.pkl'
-        bb_uncertainty_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_bb_uncertainty.pkl'
+        uncertainty_mars_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
+        uncertainty_bb_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_bb_generation.pkl'
         correctness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
-        
         # groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
         with open(similarities_input_file, 'rb') as f:
             similarities_dict = pickle.load(f)
-        with open(likelihoods_input_file, 'rb') as f:
-            likelihoods_results  = pickle.load(f)
-        with open(bb_uncertainty_input_file, 'rb') as f:
-            bb_uncertainty_results  = pickle.load(f)
+        with open(uncertainty_mars_input_file, 'rb') as f:
+            uncertainty_mars_results  = pickle.load(f)
+        with open(uncertainty_bb_input_file, 'rb') as f:
+            uncertainty_bb_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
         # with open(groundedness_input_file, 'rb') as f:
@@ -95,27 +90,27 @@ def get_calibration_results(args):
             # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             
         )
-        likelihoods = likelihoods_results
-        likelihoods_small = dict((k, likelihoods[k]) for k in keys_to_use)
-        for key in likelihoods_small:
+        uncertainty_mars = uncertainty_mars_results
+        uncertainty_mars_small = dict((k, uncertainty_mars[k]) for k in keys_to_use)
+        for key in uncertainty_mars_small:
             if key == 'average_predictive_entropy_on_subsets':
-                likelihoods_small[key].shape
-            if type(likelihoods_small[key]) is torch.Tensor:
-                likelihoods_small[key] = torch.squeeze(likelihoods_small[key].cpu())
-        likelihoods_df = pd.DataFrame.from_dict(likelihoods_small)
-        likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
+                uncertainty_mars_small[key].shape
+            if type(uncertainty_mars_small[key]) is torch.Tensor:
+                uncertainty_mars_small[key] = torch.squeeze(uncertainty_mars_small[key].cpu())
+        uncertainty_mars_df = pd.DataFrame.from_dict(uncertainty_mars_small)
+        uncertainty_mars_df.rename(columns={'ids': 'id'}, inplace=True) 
         
         # 
-        bb_uncertainty_df = pd.DataFrame(bb_uncertainty_results)
-        bb_uncertainty_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
-        bb_uncertainty_small = dict((k, bb_uncertainty_df[k]) for k in bb_uncertainty_keys_to_use)
-        bb_uncertainty_df = pd.DataFrame.from_dict(bb_uncertainty_small)
+        uncertainty_bb_df = pd.DataFrame(uncertainty_bb_results)
+        uncertainty_bb_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
+        uncertainty_bb_small = dict((k, uncertainty_bb_df[k]) for k in uncertainty_bb_keys_to_use)
+        uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
         
         # 
         # groundedness_df = pd.DataFrame(groundedness_results)
 
         # 
-        result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id').merge(bb_uncertainty_df, on='id') # .merge(groundedness_df, on='id')
+        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id').merge(uncertainty_bb_df, on='id') # .merge(groundedness_df, on='id')
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
@@ -218,7 +213,7 @@ def get_calibration_results(args):
         plt.xticks(np.linspace(0.1, 1.0, 10))  # Set x-ticks as specified
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/ECE_correctness_vs_confidence_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/ECE_correctness_vs_confidence_{prefix}.png')
     
     def plot_correctness_vs_uncertainty(correctness, uncertainty, metric_text, prefix, num_bins=10):
         max_uncertainty_val = 20
@@ -256,7 +251,7 @@ def get_calibration_results(args):
         plt.xticks(range(0, max_uncertainty_val+1, int(max_uncertainty_val/10)))  # Set x-ticks as specified
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/ECE_correctness_vs_uncertainty_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
     
     def plot_correctness_vs_uncertainty_for_axioms(correctness, uncertainty, axiom_correctness, axiom_uncertainty, metric_text, prefix, num_bins=10):
         max_uncertainty_val = 20
@@ -300,7 +295,7 @@ def get_calibration_results(args):
         plt.xticks(range(0, max_uncertainty_val+1))
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/ECE_correctness_vs_uncertainty_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
     
     def plot_correctness_vs_uncertainties_indication_diagram(correctness, uncertainty, rce_text, prefix, num_bins=10):
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -316,7 +311,7 @@ def get_calibration_results(args):
         )
         plt.grid()
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/RCE_correctness_vs_uncertainty_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/RCE_correctness_vs_uncertainty_{prefix}.png')
     
     def run_calibration_metrics(uncertainty_model):
         
@@ -507,8 +502,8 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
-    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
+    parser.add_argument('--run_id', type=str, default='run_1')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

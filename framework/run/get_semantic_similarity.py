@@ -10,6 +10,7 @@ import torch
 import pickle
 import logging
 import argparse
+import evaluate
 from tqdm import tqdm
 from transformers import BertModel
 from transformers import BertTokenizerFast 
@@ -150,6 +151,11 @@ def get_similarity(args):
         has_semantically_different_answers = False
         inputs = []
         syntactic_similarities = {}
+        
+        # # Src: https://github.com/jinhaoduan/SAR/blob/main/src/get_semantic_clusters.py
+        # rouge_types = ['rouge1', 'rouge2', 'rougeL']
+        # for rouge_type in rouge_types:
+        #     syntactic_similarities[rouge_type] = 0.0
 
         semantic_set_ids = {}
         for index, answer in enumerate(unique_generated_texts):
@@ -234,6 +240,13 @@ def get_similarity(args):
                     if i != j:
                         answer_list_1.append(i)
                         answer_list_2.append(j)
+        
+        # Src: https://github.com/jinhaoduan/SAR/blob/main/src/get_semantic_clusters.py
+        # rouge = evaluate.load('rouge')
+        # results = rouge.compute(predictions=answer_list_1, references=answer_list_2)
+        # for rouge_type in rouge_types:
+        #     syntactic_similarities[rouge_type] = results[rouge_type]
+
 
         result_dict[id_] = {
             'syntactic_similarities': syntactic_similarities,

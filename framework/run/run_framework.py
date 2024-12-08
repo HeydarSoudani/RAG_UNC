@@ -3,31 +3,24 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-
 import torch
-import random
-import numpy as np
-import argparse, json
+import argparse
 
-from framework.utils.utils import set_seed
 from answers_generation import generation
 from get_semantic_similarity import get_similarity
-
-# from get_likelihoods import get_likelihoods
-from get_probabilities import get_probability
-from get_likelihoods_v2 import get_likelihoods
-
 from get_groundedness import get_groundedness
+from get_probabilities import get_probability
+from get_likelihoods_mars import get_likelihoods_mars
 
-from get_blackbox_uncertainty import get_bb_uncertainty
+from get_uncertainty_mars import get_uncertainty_mars
+from get_uncertainty_blackbox import get_uncertainty_bb
+from get_uncertainty_sar import get_uncertainty_sar
 
-# from get_uncertainty import get_uncertainty
 from get_correctness import get_correctness
-# from get_verification import get_verification
 from get_calibration_results import get_calibration_results
 from get_axiomatic_results import get_axiomatic_results
 
+from utils.utils import set_seed
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -64,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
@@ -84,27 +77,19 @@ if __name__ == "__main__":
     
     set_seed(args.seed)
     
-    
     ### === Phase 1: answer generation & cleaning
     generation(args)
     
-    
     ### === Phase 2: Uncertainty computation
+    get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
+    get_groundedness(args)
+    get_probability(args)
+    get_likelihoods_mars(args)
     
-    ## = Method(s) 1: PE, SE, +MARS 
-    # get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
-    # get_groundedness(args)
-    # get_probability(args)
-    # get_likelihoods(args)
-    
-    
-    ## = Method 2: SAR
-    
-    
-    
-    ## = Method 3: Similarity-based
-    get_bb_uncertainty(args)
-    
+    get_uncertainty_mars(args)
+    get_uncertainty_bb(args)
+    # TODO: sar_uncertainty
+    # get_uncertainty_sar(args)
     
     ### === Phase 3: correctness and results
     get_correctness(args)
@@ -113,18 +98,6 @@ if __name__ == "__main__":
     
     
     # python framework/run/run_framework.py
-
-
-
-
-
-# get_uncertainty(args)
-
-
-
-
-
-
 
 
 
