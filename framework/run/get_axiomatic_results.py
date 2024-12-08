@@ -16,11 +16,9 @@ from tqdm import tqdm
 from sentence_transformers.cross_encoder import CrossEncoder
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from transformers import pipeline
-
 # from minicheck.minicheck import MiniCheck
 
-
-from framework.utils.utils import set_seed, uncertainty_to_confidence_min_max
+from utils.utils import set_seed, uncertainty_to_confidence_min_max
 from metrics.calibration import ECE_estimate
 
 def get_axiomatic_results(args):
@@ -37,7 +35,7 @@ def get_axiomatic_results(args):
     # === Define output files ===================
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
-    similarity_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_similarity_output__sec_{args.second_prompt_format}.jsonl'
+    answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_answers_equality_output__sec_{args.second_prompt_format}.jsonl'
     axioms123_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axioms123_output__sec_{args.second_prompt_format}.json'
     axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axiom4_output__sec_{args.second_prompt_format}.json'
     axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axiom5_output__sec_{args.second_prompt_format}.json'
@@ -54,9 +52,9 @@ def get_axiomatic_results(args):
     # 1) Common NLI models
     # - Labels: {0: Contradiction, 1: Neutral, 2: Entailment}
     # semantic_model_name = "microsoft/deberta-v2-xxlarge-mnli"
-    # semantic_model_name = "microsoft/deberta-large-mnli"
+    semantic_model_name = "microsoft/deberta-large-mnli"
     # semantic_model_name = 'facebook/bart-large-mnli'
-    semantic_model_name = "tals/albert-xlarge-vitaminc-mnli"
+    # semantic_model_name = "tals/albert-xlarge-vitaminc-mnli"
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
     semantic_model.eval()
@@ -178,7 +176,8 @@ def get_axiomatic_results(args):
         
         return correctness_results, correctness_bin, one_minus_correctness
     
-    def get_aggreement(sequence_1, sequence_2, threshold=0.5):
+    
+    def compute_answer_equality(sequence_1, sequence_2, threshold=0.5):
         
         sequence_2_ = {}
         for sample in sequence_2:
@@ -220,7 +219,59 @@ def get_axiomatic_results(args):
                     print(f"\nQuery {id_} is not common between two sequences !!!")
             
         return agree_list, non_agree_list
+       
+    def compute_answer_equality_nli(sequence_1, sequence_2):
+        sequence_2_ = {}
+        for sample in sequence_2:
+            sequence_2_[sample['id']] = sample
         
+        semantically_similar_list = []
+        semantically_not_similar_list = []
+        
+        with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
+            for i, sample in tqdm(enumerate(sequence_1)):
+                id_ = sample['id']
+                question = sample['question']
+                is_equal = False
+                
+                if id_ in sequence_2_:
+                    generation_most_likely_seq1 = sample['cleaned_most_likely_generation']
+                    generation_most_likely_seq2 = sequence_2_[id_]['cleaned_most_likely_generation']
+                    qa_1 = question + ' ' + generation_most_likely_seq1
+                    qa_2 = question + ' ' + generation_most_likely_seq2
+                    
+                    input = generation_most_likely_seq1 + ' [SEP] ' + generation_most_likely_seq2
+                    encoded_input = semantic_tokenizer.encode(input, padding=True)
+                    prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+                    predicted_label = torch.argmax(prediction, dim=1)
+
+                    reverse_input = generation_most_likely_seq2 + ' [SEP] ' + generation_most_likely_seq1
+                    encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+                    reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+                    reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+                    
+                    if 0 in predicted_label or 0 in reverse_predicted_label:
+                        semantically_not_similar_list.append(id_)
+                        is_equal = False
+                    else:
+                        semantically_similar_list.append(id_)
+                        is_equal = True
+
+                else:
+                    print(f"\nQuery {id_} is not common between two sequences !!!")
+
+                result_item = {
+                    'id': id_,
+                    'question': sample['question'],
+                    'generation_seq_1': generation_most_likely_seq1,
+                    'generation_seq_2': generation_most_likely_seq2,
+                    'is_equal': is_equal
+                }
+                jl_ofile.write(json.dumps(result_item) + '\n')
+
+        return semantically_similar_list, semantically_not_similar_list
+
+
     def in_doc_existence(sequences, ids):
         samples = [item for item in sequences if item['id'] in ids]
         
@@ -387,25 +438,30 @@ def get_axiomatic_results(args):
     result_df_second_prompt_filtered_se = result_df_second_prompt[result_df_second_prompt['predictive_entropy_over_concepts_main_prompt'] <= 100]
     
     # First check: answer1 is equal to answer2
-    if os.path.isfile(similarity_output_jsonl_file):
-        print(f"{similarity_output_jsonl_file} exists.")
-        threshold = 0.5
-        agree_list, non_agree_list = [], []
-        with open(similarity_output_jsonl_file, 'r') as file:
-            ids = []
-            for line in file:
-                sample = json.loads(line.strip())
-                ids.append(sample['id'])
-                if sample['sim_score'] > threshold:
-                    agree_list.append(sample['id'])
-                else:
-                    non_agree_list.append(sample['id'])
+    if os.path.isfile(answers_equality_output_jsonl_file):
+        print(f"{answers_equality_output_jsonl_file} exists.")
+        # threshold = 0.5
+        # agree_list, non_agree_list = [], []
+        # with open(similarity_output_jsonl_file, 'r') as file:
+        #     ids = []
+        #     for line in file:
+        #         sample = json.loads(line.strip())
+        #         ids.append(sample['id'])
+        #         if sample['sim_score'] > threshold:
+        #             agree_list.append(sample['id'])
+        #         else:
+        #             non_agree_list.append(sample['id'])
+        with open(answers_equality_output_jsonl_file, 'r') as json_file:
+            data = json.load(json_file)
+        agree_list, non_agree_list = data['semantically_similar'], data['semantically_not_similar']
+        
     else:
         print("Computing similarity ...")
-        similarity_model_name = "cross-encoder/stsb-roberta-large"
-        similarity_model = CrossEncoder(model_name=similarity_model_name, num_labels=1)
-        similarity_model.model.to(args.device)
-        agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
+        # similarity_model_name = "cross-encoder/stsb-roberta-large"
+        # similarity_model = CrossEncoder(model_name=similarity_model_name, num_labels=1)
+        # similarity_model.model.to(args.device)
+        agree_list, non_agree_list = compute_answer_equality_nli(sequences_main, sequences_secondry)
+        # agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
     
     # === Main Computation ========================
     # print("================= Axioms: 1, 2, 3 ==========")
@@ -641,7 +697,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

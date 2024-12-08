@@ -3,19 +3,16 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import json
 import torch
 import pickle
-import logging
 import argparse
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 
-from framework.utils.utils import set_seed
+from utils.utils import set_seed
 
 
-def get_likelihoods(args):
+def get_likelihoods_mars(args):
     print("\n--- Step 3-2: Get Likelihoods ...")
     print(f"""
         Model name: {args.model}
@@ -31,7 +28,6 @@ def get_likelihoods(args):
     # === Define output file ========================
     # === Read the generation & similarities data ===
     model = args.model.split('/')[-1]
-    uncertainty_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_uncertainty_generation.pkl'
     likelihoods_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_likelihoods_generation.pkl'
     similarities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
     # probabilities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_probabilities_generation.pkl'
@@ -123,113 +119,6 @@ def get_likelihoods(args):
         
         return score
 
-    def get_overall_log_likelihoods(list_of_results):
-        """Compute log likelihood of all generations under their given context.
-        list_of_results: list of dictionaries with keys:
-        returns: dictionary with keys: 'neg_log_likelihoods', 'average_neg_log_likelihoods'
-                that contains tensors of shape (num_models, num_generations, num_samples_per_generation)
-        """
-
-        result_dict = {}
-        geometric_dict ={}
-
-        # list_of_keys = ['neg_log_likelihoods', 'average_neg_log_likelihoods',\
-        #                 'pointwise_mutual_information', 'average_neg_log_likelihood_of_most_likely_gen',\
-        #                 'neg_log_likelihood_of_most_likely_gen', 'semantic_set_ids', \
-        #                 'average_neg_log_likelihoods_importance_mean', 'average_neg_log_likelihoods_importance_max', 'average_neg_log_likelihoods_importance_min',\
-        #                 'most_likely_neg_log_likelihoods', 
-        #                 'most_likely_neg_log_likelihoods_importance_mean', 'most_likely_neg_log_likelihoods_importance_max', 'most_likely_neg_log_likelihoods_importance_min']
-        list_of_keys = [
-            'average_neg_log_likelihoods_main_prompt',
-            'average_neg_log_likelihoods_importance_mean_main_prompt',
-            'average_neg_log_likelihoods_importance_max_main_prompt',
-            'average_neg_log_likelihoods_importance_min_main_prompt',
-            'most_likely_neg_log_likelihoods_main_prompt', 
-            'most_likely_neg_log_likelihoods_importance_mean_main_prompt',
-            'most_likely_neg_log_likelihoods_importance_max_main_prompt',
-            'most_likely_neg_log_likelihoods_importance_min_main_prompt',
-            
-            'average_neg_log_likelihoods_second_prompt',
-            'average_neg_log_likelihoods_importance_mean_second_prompt',
-            'average_neg_log_likelihoods_importance_max_second_prompt',
-            'average_neg_log_likelihoods_importance_min_second_prompt',
-            'most_likely_neg_log_likelihoods_second_prompt', 
-            'most_likely_neg_log_likelihoods_importance_mean_second_prompt',
-            'most_likely_neg_log_likelihoods_importance_max_second_prompt',
-            'most_likely_neg_log_likelihoods_importance_min_second_prompt',
-            
-            'average_neg_log_likelihoods_third_prompt',
-            'average_neg_log_likelihoods_importance_mean_third_prompt',
-            'average_neg_log_likelihoods_importance_max_third_prompt',
-            'average_neg_log_likelihoods_importance_min_third_prompt',
-            'most_likely_neg_log_likelihoods_third_prompt', 
-            'most_likely_neg_log_likelihoods_importance_mean_third_prompt',
-            'most_likely_neg_log_likelihoods_importance_max_third_prompt',
-            'most_likely_neg_log_likelihoods_importance_min_third_prompt',
-            
-            'similarity_score',
-            'semantic_set_ids',
-            
-        ]
-
-        geometric_keys = ['has_different_answers','unique_answers_indices']
-
-        for key in geometric_keys:
-            overall_results = []
-            for sample in list_of_results:
-                overall_results.append(sample[key])
-            geometric_dict[key]  = overall_results
-
-        for key in list_of_keys:
-            list_of_ids = []
-            overall_results = []
-            results_per_model = []
-            for sample in list_of_results:
-                average_neg_log_likelihoods = sample[key]
-                list_of_ids.append(sample['id'])
-                results_per_model.append(average_neg_log_likelihoods)
-
-            results_per_model = [torch.tensor(x) if isinstance(x, int) else x for x in results_per_model]
-            results_per_model = torch.stack(results_per_model)
-            overall_results.append(results_per_model)
-
-            if key not in ['meaning_vectors', 'meaning_vectors_only_answer','has_different_answers']:
-                overall_results = torch.stack(overall_results)
-
-            result_dict[key] = overall_results
-
-        result_dict['ids'] = list_of_ids
-        return result_dict, geometric_dict
-    
-    def get_predictive_entropy(log_likelihoods):
-        """Compute predictive entropy of approximate posterior predictive"""
-        mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
-        entropy = -torch.sum(mean_across_models, dim=1) / torch.tensor(mean_across_models.shape[1])
-        
-        return entropy
-    
-    def get_predictive_entropy_over_concepts(log_likelihoods, semantic_set_ids):
-        """Compute the semantic entropy"""
-        #log_likelihoods = log_likelihoods[:,:,:1]
-        mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
-        # This is ok because all the models have the same semantic set ids
-        semantic_set_ids = semantic_set_ids[0]
-        entropies = []
-        for row_index in range(mean_across_models.shape[0]):
-            aggregated_likelihoods = []
-            row = mean_across_models[row_index]
-            semantic_set_ids_row = semantic_set_ids[row_index]
-            #semantic_set_ids_row = semantic_set_ids_row[:1]
-            for semantic_set_id in torch.unique(semantic_set_ids_row):
-                aggregated_likelihoods.append(torch.logsumexp(row[semantic_set_ids_row == semantic_set_id], dim=0))
-            aggregated_likelihoods = torch.tensor(aggregated_likelihoods) - llh_shift
-            entropy = - torch.sum(aggregated_likelihoods, dim=0) / torch.tensor(aggregated_likelihoods.shape[0])
-            entropies.append(entropy)
-
-        # print(torch.tensor(entropies))
-
-        return torch.tensor(entropies)
-    
     ### === Main loop ==================================
     result = []
     ids = []
@@ -321,7 +210,6 @@ def get_likelihoods(args):
                 average_neg_log_likelihoods_importance_mean_second_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_max_second_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_min_second_prompt[generation_index] = score
-
 
             ### === Third prompt =============================
             probs_third = probabilities_generations[generation_index][4]
@@ -482,123 +370,7 @@ def get_likelihoods(args):
     with open(likelihoods_output_file, 'wb') as ofile:
         pickle.dump(result, ofile)
     print(f"Results saved to {likelihoods_output_file}")
-
-
-
-
-    ### === Attach uncertainty =======================
-    overall_results, geometric_results = get_overall_log_likelihoods(result)
     
-    
-    # === Main prompt ======== 
-    # PE & SE
-    average_predictive_entropy_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_main_prompt'])
-    predictive_entropy_over_concepts_main_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_main_prompt'],
-        overall_results['semantic_set_ids']
-    )
-    # With MARS
-    average_predictive_entropy_importance_mean_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_main_prompt'])
-    average_predictive_entropy_importance_max_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_main_prompt'])
-    average_predictive_entropy_importance_min_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_main_prompt'])
-    predictive_entropy_over_concepts_importance_mean_main_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_mean_main_prompt'],
-        overall_results['semantic_set_ids']
-    )    
-    predictive_entropy_over_concepts_importance_max_main_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_max_main_prompt'],
-        overall_results['semantic_set_ids']
-    )    
-    predictive_entropy_over_concepts_importance_min_main_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_min_main_prompt'],
-        overall_results['semantic_set_ids']
-    ) 
-    
-    # === Second prompt ======== 
-    # PE & SE
-    average_predictive_entropy_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_second_prompt'])
-    predictive_entropy_over_concepts_second_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_second_prompt'],
-        overall_results['semantic_set_ids']
-    )
-    # With MARS
-    average_predictive_entropy_importance_mean_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_second_prompt'])
-    average_predictive_entropy_importance_max_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_second_prompt'])
-    average_predictive_entropy_importance_min_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_second_prompt'])
-    predictive_entropy_over_concepts_importance_mean_second_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_mean_second_prompt'],
-        overall_results['semantic_set_ids']
-    )    
-    predictive_entropy_over_concepts_importance_max_second_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_max_second_prompt'],
-        overall_results['semantic_set_ids']
-    )    
-    predictive_entropy_over_concepts_importance_min_second_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_min_second_prompt'],
-        overall_results['semantic_set_ids']
-    ) 
-    
-    # === Third prompt ======== 
-    # PE & SE
-    average_predictive_entropy_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_third_prompt'])
-    predictive_entropy_over_concepts_third_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_third_prompt'],
-        overall_results['semantic_set_ids']
-    )
-    # With MARS
-    average_predictive_entropy_importance_mean_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_third_prompt'])
-    average_predictive_entropy_importance_max_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_third_prompt'])
-    average_predictive_entropy_importance_min_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_third_prompt'])
-    predictive_entropy_over_concepts_importance_mean_third_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_mean_third_prompt'],
-        overall_results['semantic_set_ids']
-    )    
-    predictive_entropy_over_concepts_importance_max_third_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_max_third_prompt'],
-        overall_results['semantic_set_ids']
-    )    
-    predictive_entropy_over_concepts_importance_min_third_prompt = get_predictive_entropy_over_concepts(
-        -overall_results['average_neg_log_likelihoods_importance_min_third_prompt'],
-        overall_results['semantic_set_ids']
-    )
-    
-    # === Write in variables ==================
-    # = Main prompt ===
-    overall_results['average_predictive_entropy_main_prompt'] = average_predictive_entropy_main_prompt
-    overall_results['predictive_entropy_over_concepts_main_prompt'] = predictive_entropy_over_concepts_main_prompt
-    overall_results['average_predictive_entropy_importance_mean_main_prompt'] = average_predictive_entropy_importance_mean_main_prompt
-    overall_results['average_predictive_entropy_importance_max_main_prompt'] = average_predictive_entropy_importance_max_main_prompt
-    overall_results['average_predictive_entropy_importance_min_main_prompt'] = average_predictive_entropy_importance_min_main_prompt
-    overall_results['predictive_entropy_over_concepts_importance_mean_main_prompt'] = predictive_entropy_over_concepts_importance_mean_main_prompt
-    overall_results['predictive_entropy_over_concepts_importance_max_main_prompt'] = predictive_entropy_over_concepts_importance_max_main_prompt
-    overall_results['predictive_entropy_over_concepts_importance_min_main_prompt'] = predictive_entropy_over_concepts_importance_min_main_prompt
-    
-    # = Second prompt ===
-    overall_results['average_predictive_entropy_second_prompt'] = average_predictive_entropy_second_prompt
-    overall_results['predictive_entropy_over_concepts_second_prompt'] = predictive_entropy_over_concepts_second_prompt
-    overall_results['average_predictive_entropy_importance_mean_second_prompt'] = average_predictive_entropy_importance_mean_second_prompt
-    overall_results['average_predictive_entropy_importance_max_second_prompt'] = average_predictive_entropy_importance_max_second_prompt
-    overall_results['average_predictive_entropy_importance_min_second_prompt'] = average_predictive_entropy_importance_min_second_prompt
-    overall_results['predictive_entropy_over_concepts_importance_mean_second_prompt'] = predictive_entropy_over_concepts_importance_mean_second_prompt
-    overall_results['predictive_entropy_over_concepts_importance_max_second_prompt'] = predictive_entropy_over_concepts_importance_max_second_prompt
-    overall_results['predictive_entropy_over_concepts_importance_min_second_prompt'] = predictive_entropy_over_concepts_importance_min_second_prompt
-    
-    # = Third prompt ===
-    overall_results['average_predictive_entropy_third_prompt'] = average_predictive_entropy_third_prompt
-    overall_results['predictive_entropy_over_concepts_third_prompt'] = predictive_entropy_over_concepts_third_prompt
-    overall_results['average_predictive_entropy_importance_mean_third_prompt'] = average_predictive_entropy_importance_mean_third_prompt
-    overall_results['average_predictive_entropy_importance_max_third_prompt'] = average_predictive_entropy_importance_max_third_prompt
-    overall_results['average_predictive_entropy_importance_min_third_prompt'] = average_predictive_entropy_importance_min_third_prompt
-    overall_results['predictive_entropy_over_concepts_importance_mean_third_prompt'] = predictive_entropy_over_concepts_importance_mean_third_prompt
-    overall_results['predictive_entropy_over_concepts_importance_max_third_prompt'] = predictive_entropy_over_concepts_importance_max_third_prompt
-    overall_results['predictive_entropy_over_concepts_importance_min_third_prompt'] = predictive_entropy_over_concepts_importance_min_third_prompt
-    
-    
-    ### === Save the uncertainty result ============
-    with open(uncertainty_output_file, 'wb') as ofile:
-        pickle.dump(overall_results, ofile)
-    print(f"Results saved to {uncertainty_output_file}")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -610,7 +382,7 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -654,9 +426,9 @@ if __name__ == "__main__":
         args.second_prompt_format == 'only_q'
     
     set_seed(args.seed)
-    get_likelihoods(args)
+    get_likelihoods_mars(args)
     
-    # python framework/run/get_likelihoods_v2.py
+    # python framework/run/get_likelihoods_mars.py
     
    
    
@@ -725,6 +497,244 @@ if __name__ == "__main__":
   
   
   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    #   def get_overall_log_likelihoods(list_of_results):
+    #     """Compute log likelihood of all generations under their given context.
+    #     list_of_results: list of dictionaries with keys:
+    #     returns: dictionary with keys: 'neg_log_likelihoods', 'average_neg_log_likelihoods'
+    #             that contains tensors of shape (num_models, num_generations, num_samples_per_generation)
+    #     """
+
+    #     result_dict = {}
+    #     geometric_dict ={}
+
+    #     # list_of_keys = ['neg_log_likelihoods', 'average_neg_log_likelihoods',\
+    #     #                 'pointwise_mutual_information', 'average_neg_log_likelihood_of_most_likely_gen',\
+    #     #                 'neg_log_likelihood_of_most_likely_gen', 'semantic_set_ids', \
+    #     #                 'average_neg_log_likelihoods_importance_mean', 'average_neg_log_likelihoods_importance_max', 'average_neg_log_likelihoods_importance_min',\
+    #     #                 'most_likely_neg_log_likelihoods', 
+    #     #                 'most_likely_neg_log_likelihoods_importance_mean', 'most_likely_neg_log_likelihoods_importance_max', 'most_likely_neg_log_likelihoods_importance_min']
+    #     list_of_keys = [
+    #         'average_neg_log_likelihoods_main_prompt',
+    #         'average_neg_log_likelihoods_importance_mean_main_prompt',
+    #         'average_neg_log_likelihoods_importance_max_main_prompt',
+    #         'average_neg_log_likelihoods_importance_min_main_prompt',
+    #         'most_likely_neg_log_likelihoods_main_prompt', 
+    #         'most_likely_neg_log_likelihoods_importance_mean_main_prompt',
+    #         'most_likely_neg_log_likelihoods_importance_max_main_prompt',
+    #         'most_likely_neg_log_likelihoods_importance_min_main_prompt',
+            
+    #         'average_neg_log_likelihoods_second_prompt',
+    #         'average_neg_log_likelihoods_importance_mean_second_prompt',
+    #         'average_neg_log_likelihoods_importance_max_second_prompt',
+    #         'average_neg_log_likelihoods_importance_min_second_prompt',
+    #         'most_likely_neg_log_likelihoods_second_prompt', 
+    #         'most_likely_neg_log_likelihoods_importance_mean_second_prompt',
+    #         'most_likely_neg_log_likelihoods_importance_max_second_prompt',
+    #         'most_likely_neg_log_likelihoods_importance_min_second_prompt',
+            
+    #         'average_neg_log_likelihoods_third_prompt',
+    #         'average_neg_log_likelihoods_importance_mean_third_prompt',
+    #         'average_neg_log_likelihoods_importance_max_third_prompt',
+    #         'average_neg_log_likelihoods_importance_min_third_prompt',
+    #         'most_likely_neg_log_likelihoods_third_prompt', 
+    #         'most_likely_neg_log_likelihoods_importance_mean_third_prompt',
+    #         'most_likely_neg_log_likelihoods_importance_max_third_prompt',
+    #         'most_likely_neg_log_likelihoods_importance_min_third_prompt',
+            
+    #         'similarity_score',
+    #         'semantic_set_ids',
+            
+    #     ]
+
+    #     geometric_keys = ['has_different_answers','unique_answers_indices']
+
+    #     for key in geometric_keys:
+    #         overall_results = []
+    #         for sample in list_of_results:
+    #             overall_results.append(sample[key])
+    #         geometric_dict[key]  = overall_results
+
+    #     for key in list_of_keys:
+    #         list_of_ids = []
+    #         overall_results = []
+    #         results_per_model = []
+    #         for sample in list_of_results:
+    #             average_neg_log_likelihoods = sample[key]
+    #             list_of_ids.append(sample['id'])
+    #             results_per_model.append(average_neg_log_likelihoods)
+
+    #         results_per_model = [torch.tensor(x) if isinstance(x, int) else x for x in results_per_model]
+    #         results_per_model = torch.stack(results_per_model)
+    #         overall_results.append(results_per_model)
+
+    #         if key not in ['meaning_vectors', 'meaning_vectors_only_answer','has_different_answers']:
+    #             overall_results = torch.stack(overall_results)
+
+    #         result_dict[key] = overall_results
+
+    #     result_dict['ids'] = list_of_ids
+    #     return result_dict, geometric_dict
+    
+    # def get_predictive_entropy(log_likelihoods):
+    #     """Compute predictive entropy of approximate posterior predictive"""
+    #     mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
+    #     entropy = -torch.sum(mean_across_models, dim=1) / torch.tensor(mean_across_models.shape[1])
+        
+    #     return entropy
+    
+    # def get_predictive_entropy_over_concepts(log_likelihoods, semantic_set_ids):
+    #     """Compute the semantic entropy"""
+    #     #log_likelihoods = log_likelihoods[:,:,:1]
+    #     mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
+    #     # This is ok because all the models have the same semantic set ids
+    #     semantic_set_ids = semantic_set_ids[0]
+    #     entropies = []
+    #     for row_index in range(mean_across_models.shape[0]):
+    #         aggregated_likelihoods = []
+    #         row = mean_across_models[row_index]
+    #         semantic_set_ids_row = semantic_set_ids[row_index]
+    #         #semantic_set_ids_row = semantic_set_ids_row[:1]
+    #         for semantic_set_id in torch.unique(semantic_set_ids_row):
+    #             aggregated_likelihoods.append(torch.logsumexp(row[semantic_set_ids_row == semantic_set_id], dim=0))
+    #         aggregated_likelihoods = torch.tensor(aggregated_likelihoods) - llh_shift
+    #         entropy = - torch.sum(aggregated_likelihoods, dim=0) / torch.tensor(aggregated_likelihoods.shape[0])
+    #         entropies.append(entropy)
+
+    #     # print(torch.tensor(entropies))
+
+    #     return torch.tensor(entropies)
+    
+  
+   # ### === Attach uncertainty =======================
+    # overall_results, geometric_results = get_overall_log_likelihoods(result)
+    
+    
+    # # === Main prompt ======== 
+    # # PE & SE
+    # average_predictive_entropy_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_main_prompt'])
+    # predictive_entropy_over_concepts_main_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_main_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )
+    # # With MARS
+    # average_predictive_entropy_importance_mean_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_main_prompt'])
+    # average_predictive_entropy_importance_max_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_main_prompt'])
+    # average_predictive_entropy_importance_min_main_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_main_prompt'])
+    # predictive_entropy_over_concepts_importance_mean_main_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_mean_main_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )    
+    # predictive_entropy_over_concepts_importance_max_main_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_max_main_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )    
+    # predictive_entropy_over_concepts_importance_min_main_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_min_main_prompt'],
+    #     overall_results['semantic_set_ids']
+    # ) 
+    
+    # # === Second prompt ======== 
+    # # PE & SE
+    # average_predictive_entropy_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_second_prompt'])
+    # predictive_entropy_over_concepts_second_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_second_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )
+    # # With MARS
+    # average_predictive_entropy_importance_mean_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_second_prompt'])
+    # average_predictive_entropy_importance_max_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_second_prompt'])
+    # average_predictive_entropy_importance_min_second_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_second_prompt'])
+    # predictive_entropy_over_concepts_importance_mean_second_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_mean_second_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )    
+    # predictive_entropy_over_concepts_importance_max_second_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_max_second_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )    
+    # predictive_entropy_over_concepts_importance_min_second_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_min_second_prompt'],
+    #     overall_results['semantic_set_ids']
+    # ) 
+    
+    # # === Third prompt ======== 
+    # # PE & SE
+    # average_predictive_entropy_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_third_prompt'])
+    # predictive_entropy_over_concepts_third_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_third_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )
+    # # With MARS
+    # average_predictive_entropy_importance_mean_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_third_prompt'])
+    # average_predictive_entropy_importance_max_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_third_prompt'])
+    # average_predictive_entropy_importance_min_third_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_third_prompt'])
+    # predictive_entropy_over_concepts_importance_mean_third_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_mean_third_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )    
+    # predictive_entropy_over_concepts_importance_max_third_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_max_third_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )    
+    # predictive_entropy_over_concepts_importance_min_third_prompt = get_predictive_entropy_over_concepts(
+    #     -overall_results['average_neg_log_likelihoods_importance_min_third_prompt'],
+    #     overall_results['semantic_set_ids']
+    # )
+    
+    # # === Write in variables ==================
+    # # = Main prompt ===
+    # overall_results['average_predictive_entropy_main_prompt'] = average_predictive_entropy_main_prompt
+    # overall_results['predictive_entropy_over_concepts_main_prompt'] = predictive_entropy_over_concepts_main_prompt
+    # overall_results['average_predictive_entropy_importance_mean_main_prompt'] = average_predictive_entropy_importance_mean_main_prompt
+    # overall_results['average_predictive_entropy_importance_max_main_prompt'] = average_predictive_entropy_importance_max_main_prompt
+    # overall_results['average_predictive_entropy_importance_min_main_prompt'] = average_predictive_entropy_importance_min_main_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_mean_main_prompt'] = predictive_entropy_over_concepts_importance_mean_main_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_max_main_prompt'] = predictive_entropy_over_concepts_importance_max_main_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_min_main_prompt'] = predictive_entropy_over_concepts_importance_min_main_prompt
+    
+    # # = Second prompt ===
+    # overall_results['average_predictive_entropy_second_prompt'] = average_predictive_entropy_second_prompt
+    # overall_results['predictive_entropy_over_concepts_second_prompt'] = predictive_entropy_over_concepts_second_prompt
+    # overall_results['average_predictive_entropy_importance_mean_second_prompt'] = average_predictive_entropy_importance_mean_second_prompt
+    # overall_results['average_predictive_entropy_importance_max_second_prompt'] = average_predictive_entropy_importance_max_second_prompt
+    # overall_results['average_predictive_entropy_importance_min_second_prompt'] = average_predictive_entropy_importance_min_second_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_mean_second_prompt'] = predictive_entropy_over_concepts_importance_mean_second_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_max_second_prompt'] = predictive_entropy_over_concepts_importance_max_second_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_min_second_prompt'] = predictive_entropy_over_concepts_importance_min_second_prompt
+    
+    # # = Third prompt ===
+    # overall_results['average_predictive_entropy_third_prompt'] = average_predictive_entropy_third_prompt
+    # overall_results['predictive_entropy_over_concepts_third_prompt'] = predictive_entropy_over_concepts_third_prompt
+    # overall_results['average_predictive_entropy_importance_mean_third_prompt'] = average_predictive_entropy_importance_mean_third_prompt
+    # overall_results['average_predictive_entropy_importance_max_third_prompt'] = average_predictive_entropy_importance_max_third_prompt
+    # overall_results['average_predictive_entropy_importance_min_third_prompt'] = average_predictive_entropy_importance_min_third_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_mean_third_prompt'] = predictive_entropy_over_concepts_importance_mean_third_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_max_third_prompt'] = predictive_entropy_over_concepts_importance_max_third_prompt
+    # overall_results['predictive_entropy_over_concepts_importance_min_third_prompt'] = predictive_entropy_over_concepts_importance_min_third_prompt
+    
+    
+    # ### === Save the uncertainty result ============
+    # with open(uncertainty_output_file, 'wb') as ofile:
+    #     pickle.dump(overall_results, ofile)
+    # print(f"Results saved to {uncertainty_output_file}")
+
   
   
     # def doc_entropy(probabilities):
