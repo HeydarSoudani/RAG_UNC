@@ -123,10 +123,8 @@ def get_axiomatic_results(args):
             'ids',
             'average_predictive_entropy_main_prompt', 'predictive_entropy_over_concepts_main_prompt',
             'average_predictive_entropy_importance_max_main_prompt', 'predictive_entropy_over_concepts_importance_max_main_prompt',
-            
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
-            
             # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
             # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             

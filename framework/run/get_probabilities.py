@@ -86,6 +86,41 @@ def get_probability(args):
         
         return probs
     
+    
+    # TODO: CAD for probability
+    def get_probability_cad(prompt, prompt_secondry, generation):
+        alpha = 0.5
+        _generation = generation[generation != tokenizer.pad_token_id]
+        
+        # For main prompt
+        prompt = prompt[prompt != tokenizer.pad_token_id]
+        len_prompt = len(prompt)
+        p_generation = torch.cat((prompt, _generation), dim=0)
+        target_ids = p_generation.clone()
+        target_ids[:len_prompt] = -100
+        model_output = model(torch.reshape(p_generation, (1, -1)), labels=target_ids, output_hidden_states=False)
+        _logits = model_output['logits'][0, len_prompt-1:-1]
+        _logits = _logits.float()
+        
+        
+        # For sec prompt
+        prompt_secondry = prompt_secondry[prompt_secondry != tokenizer.pad_token_id]
+        len_prompt_secondry = len(prompt_secondry)
+        p_sec_generation = torch.cat((prompt_secondry, _generation), dim=0)
+        target_ids_sec = p_sec_generation.clone()
+        target_ids_sec[:len_prompt_secondry] = -100
+        model_output_sec = model(torch.reshape(p_sec_generation, (1, -1)), labels=target_ids_sec, output_hidden_states=False)
+        _logits_sec = model_output_sec['logits'][0, len_prompt_secondry-1:-1]
+        _logits_sec = _logits_sec.float()
+        
+        # probability
+        logits_cad = (1+alpha) * _logits_sec - alpha * _logits
+        ids = p_generation[len_prompt:]
+        probs = torch.nn.functional.softmax(logits_cad, dim=1)
+        probs = torch.gather(probs, dim=1, index=ids.view(-1, 1))
+        
+        return probs
+    
     # === Main loop, on sequence =====================
     result_dict = {}
     model.eval()
@@ -129,7 +164,14 @@ def get_probability(args):
                     # third prompt: only answer
                     probs_only_answer = get_probability_unconditioned(prompt, cur_generation)
                     
-                    probabilities.append((generations_text[generation_index], cur_generation_tokens, probs, probs_secondry, probs_only_answer))
+                    # Forth prompt: CAD
+                    if id_ in _sequences_secondry:
+                        probs_cad = get_probability_cad(prompt, prompt_secondry, cur_generation)
+                    else:
+                        probs_cad = torch.tensor([])
+                
+                    probabilities.append((generations_text[generation_index], cur_generation_tokens, probs, probs_secondry, probs_cad))
+                    # probabilities.append((generations_text[generation_index], cur_generation_tokens, probs, probs_secondry, probs_only_answer))
                 result_dict[id_]['probabilities'] = probabilities
                 
                 # = For most-likely ====
@@ -191,7 +233,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
@@ -207,7 +249,7 @@ if __name__ == "__main__":
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
