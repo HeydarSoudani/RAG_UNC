@@ -213,24 +213,32 @@ def get_likelihoods_mars(args):
 
             ### === Third prompt =============================
             probs_third = probabilities_generations[generation_index][4]
-            model_output_loss_third = compute_token_nll(probs_third) 
-            model_output_loss_importance_mean_third = compute_token_nll_importance_phrase(
-                generation, probs_third,
-                importance_score, phrases, mode='mean'
-            )
-            model_output_loss_importance_max_third = compute_token_nll_importance_phrase(
-                generation, probs_third,
-                importance_score, phrases, mode='max'
-            )
-            model_output_loss_importance_min_third = compute_token_nll_importance_phrase(
-                generation, probs_third,
-                importance_score, phrases, mode='min'
-            )
+            if len(probs_third) > 0:
+                model_output_loss_third = compute_token_nll(probs_third) 
+                model_output_loss_importance_mean_third = compute_token_nll_importance_phrase(
+                    generation, probs_third,
+                    importance_score, phrases, mode='mean'
+                )
+                model_output_loss_importance_max_third = compute_token_nll_importance_phrase(
+                    generation, probs_third,
+                    importance_score, phrases, mode='max'
+                )
+                model_output_loss_importance_min_third = compute_token_nll_importance_phrase(
+                    generation, probs_third,
+                    importance_score, phrases, mode='min'
+                )
+                
+                average_neg_log_likelihoods_third_prompt[generation_index] = model_output_loss_third
+                average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = model_output_loss_importance_mean_third
+                average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = model_output_loss_importance_max_third
+                average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = model_output_loss_importance_min_third
             
-            average_neg_log_likelihoods_third_prompt[generation_index] = model_output_loss_third
-            average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = model_output_loss_importance_mean_third
-            average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = model_output_loss_importance_max_third
-            average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = model_output_loss_importance_min_third
+            else: 
+                score = 100000
+                average_neg_log_likelihoods_third_prompt[generation_index] = score
+                average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = score
+                average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = score
+                average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = score
             
 
         ### = For most-likely ===============================
@@ -290,24 +298,33 @@ def get_likelihoods_mars(args):
 
             # === third prompt ===============================
             probs_third = probabilities_most_likely[4]
-            most_likely_model_output_loss_third_prompt = compute_token_nll(probs_third)
-            most_likely_model_output_loss_importance_mean_third_prompt = compute_token_nll_importance_phrase(
-                _generation_most_likely, probs_third,
-                importance_score_most_likely[0], phrases, mode='mean'
-            )
-            most_likely_model_output_loss_importance_max_third_prompt = compute_token_nll_importance_phrase(
-                _generation_most_likely, probs_third,
-                importance_score_most_likely[0], phrases, mode='max'
-            )
-            most_likely_model_output_loss_importance_min_third_prompt = compute_token_nll_importance_phrase(
-                _generation_most_likely, probs_third,
-                importance_score_most_likely[0], phrases, mode='min'
-            )
-            most_likely_model_output_loss_third_prompt = most_likely_model_output_loss_third_prompt.cpu()
-            most_likely_model_output_loss_importance_mean_third_prompt = most_likely_model_output_loss_importance_mean_third_prompt.cpu()
-            most_likely_model_output_loss_importance_max_third_prompt = most_likely_model_output_loss_importance_max_third_prompt.cpu()
-            most_likely_model_output_loss_importance_min_third_prompt = most_likely_model_output_loss_importance_min_third_prompt.cpu()
+            
+            if len(probs_third) > 0:
+                most_likely_model_output_loss_third_prompt = compute_token_nll(probs_third)
+                most_likely_model_output_loss_importance_mean_third_prompt = compute_token_nll_importance_phrase(
+                    _generation_most_likely, probs_third,
+                    importance_score_most_likely[0], phrases, mode='mean'
+                )
+                most_likely_model_output_loss_importance_max_third_prompt = compute_token_nll_importance_phrase(
+                    _generation_most_likely, probs_third,
+                    importance_score_most_likely[0], phrases, mode='max'
+                )
+                most_likely_model_output_loss_importance_min_third_prompt = compute_token_nll_importance_phrase(
+                    _generation_most_likely, probs_third,
+                    importance_score_most_likely[0], phrases, mode='min'
+                )
+                most_likely_model_output_loss_third_prompt = most_likely_model_output_loss_third_prompt.cpu()
+                most_likely_model_output_loss_importance_mean_third_prompt = most_likely_model_output_loss_importance_mean_third_prompt.cpu()
+                most_likely_model_output_loss_importance_max_third_prompt = most_likely_model_output_loss_importance_max_third_prompt.cpu()
+                most_likely_model_output_loss_importance_min_third_prompt = most_likely_model_output_loss_importance_min_third_prompt.cpu()
 
+            else: 
+                score = 100000
+                most_likely_model_output_loss_third_prompt = score
+                most_likely_model_output_loss_importance_mean_third_prompt = score
+                most_likely_model_output_loss_importance_max_third_prompt = score
+                most_likely_model_output_loss_importance_min_third_prompt = score
+            
         else:
             score = 100000
             most_likely_model_output_loss_main_prompt = score

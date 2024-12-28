@@ -32,9 +32,11 @@ def get_calibration_results(args):
     
     # === Define output files ===================
     model = args.model.split('/')[-1]
-    base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
+    base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}'
     calibration_output_file = f'{base_dir_output}/{args.main_prompt_format}/calibration_results/{model}_{args.temperature}_calibration_results.jsonl'
-    os.makedirs(calibration_output_file, exist_ok=True)
+    
+    calibration_output_dir = os.path.dirname(calibration_output_file)
+    os.makedirs(calibration_output_dir, exist_ok=True)
     
     def create_result_df(prompt_format):
         
@@ -86,8 +88,8 @@ def get_calibration_results(args):
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
             
-            # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
-            # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
+            'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             
         )
         uncertainty_mars = uncertainty_mars_results
@@ -372,30 +374,30 @@ def get_calibration_results(args):
         # coef_2_ = coef_2 / (coef_1+coef_2)
         
         ### === For second prompt
-        # unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
-        # uncertainty_values_second_prompt = result_df[f"{unc_model_key_second_prompt}"]        
-        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_second_prompt)
-        # confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt)
-        # ece_test2 = ece_estimate(correctness, confidence_values_second_prompt)
-        # plot_correctness_vs_uncertainty(
-        #     correctness, uncertainty_values_second_prompt,
-        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-        #     prefix=f"{uncertainty_model}_second_prompt", num_bins=40
-        # )
+        unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+        uncertainty_values_second_prompt = result_df[f"{unc_model_key_second_prompt}"]        
+        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_second_prompt)
+        confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt)
+        ece_test2 = ece_estimate(correctness, confidence_values_second_prompt)
+        plot_correctness_vs_uncertainty(
+            correctness, uncertainty_values_second_prompt,
+            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+            prefix=f"{uncertainty_model}_second_prompt", num_bins=40
+        )
         
         ### === For third prompt
-        # unc_model_key_third_prompt = keys_mapping['third_prompt'][uncertainty_model]
-        # uncertainty_values_third_prompt = result_df[f"{unc_model_key_third_prompt}"]
-        # # print(uncertainty_values_third_prompt.nsmallest(10))
-        # # print(uncertainty_values_third_prompt.nlargest(10))
-        # auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_third_prompt)
-        # confidence_values_third_prompt = uncertainty_to_confidence_min_max(uncertainty_values_third_prompt)
-        # ece_test2 = ece_estimate(correctness, confidence_values_third_prompt)
-        # plot_correctness_vs_uncertainty(
-        #     correctness, uncertainty_values_third_prompt,
-        #     f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
-        #     prefix=f"{uncertainty_model}_third_prompt", num_bins=40
-        # )
+        unc_model_key_third_prompt = keys_mapping['third_prompt'][uncertainty_model]
+        uncertainty_values_third_prompt = result_df[f"{unc_model_key_third_prompt}"]
+        # print(uncertainty_values_third_prompt.nsmallest(10))
+        # print(uncertainty_values_third_prompt.nlargest(10))
+        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_third_prompt)
+        confidence_values_third_prompt = uncertainty_to_confidence_min_max(uncertainty_values_third_prompt)
+        ece_test2 = ece_estimate(correctness, confidence_values_third_prompt)
+        plot_correctness_vs_uncertainty(
+            correctness, uncertainty_values_third_prompt,
+            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+            prefix=f"{uncertainty_model}_third_prompt", num_bins=40
+        )
         
         
         ### === Combime first & second prompts 
@@ -447,7 +449,7 @@ def get_calibration_results(args):
         
 
     result_dict = {}
-    for uncertainty_model in ['PE', 'SE', 'EigV', 'Ecc', 'Deg']: #, 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
+    for uncertainty_model in ['PE', 'SE']: #, 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
         run_calibration_metrics(uncertainty_model)
     
     ### === Save the calibration result ============
@@ -460,7 +462,6 @@ def get_calibration_results(args):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
 
     with open(calibration_output_file, 'w') as file:
         json.dump(result_dict, file, indent=4, default=convert_to_serializable)

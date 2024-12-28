@@ -15,7 +15,7 @@ import numpy as np
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from framework.utils.utils import set_seed
+from utils.utils import set_seed
 from dataset import single_hop
 
 
@@ -30,7 +30,6 @@ def generation(args):
         Run id:        {args.run_id}
         Seed:          {args.seed}
     """.replace('        ', ''))
-    
     
     # === Define output files ===================
     model = args.model.split('/')[-1]
@@ -91,6 +90,7 @@ def generation(args):
 
     questions = train_dataset
     dataloader = torch.utils.data.DataLoader(questions, batch_size=1)
+    
     
     ### === Generation loop ====================== 
     with torch.no_grad():

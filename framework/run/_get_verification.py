@@ -14,7 +14,7 @@ from tqdm import tqdm
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from framework.utils.utils import set_seed
+from utils.utils import set_seed
 
 def get_verification(args):
     
