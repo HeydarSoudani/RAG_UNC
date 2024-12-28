@@ -17,7 +17,7 @@ from sentence_transformers.cross_encoder import CrossEncoder
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from transformers import pipeline
 
-from framework.utils.utils import set_seed, uncertainty_to_confidence_min_max
+from utils.utils import set_seed, uncertainty_to_confidence_min_max
 
 
 def test_axiomatic_idea(args):

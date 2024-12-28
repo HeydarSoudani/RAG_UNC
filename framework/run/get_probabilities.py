@@ -11,7 +11,7 @@ import argparse
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from framework.utils.utils import set_seed
+from utils.utils import set_seed
 
 
 def get_probability(args):
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
-    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--run_id', type=str, default='run_1')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

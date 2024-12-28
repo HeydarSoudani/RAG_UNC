@@ -16,7 +16,7 @@ from transformers import BertModel
 from transformers import BertTokenizerFast 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
 
-from framework.utils.utils import set_seed
+from utils.utils import set_seed
 
 
 def get_similarity(args):

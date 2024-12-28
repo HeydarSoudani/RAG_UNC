@@ -7,6 +7,7 @@ import torch
 import argparse
 
 from answers_generation import generation
+from answers_generation_cad import generation_cad
 from get_semantic_similarity import get_similarity
 from get_groundedness import get_groundedness
 from get_probabilities import get_probability
@@ -32,12 +33,12 @@ if __name__ == "__main__":
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -58,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
-    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--run_id', type=str, default='run_2')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()
@@ -78,23 +79,24 @@ if __name__ == "__main__":
     set_seed(args.seed)
     
     ### === Phase 1: answer generation & cleaning
-    generation(args)
+    # generation(args)
+    generation_cad(args)
     
     ### === Phase 2: Uncertainty computation
-    get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
-    get_groundedness(args)
-    get_probability(args)
-    get_likelihoods_mars(args)
+    # get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
+    # get_groundedness(args)
+    # get_probability(args)
+    # get_likelihoods_mars(args)
     
-    get_uncertainty_mars(args)
-    get_uncertainty_bb(args)
-    # TODO: sar_uncertainty
-    # get_uncertainty_sar(args)
+    # get_uncertainty_mars(args)
+    # get_uncertainty_bb(args)
+    # # TODO: sar_uncertainty
+    # # get_uncertainty_sar(args)
     
-    ### === Phase 3: correctness and results
-    get_correctness(args)
-    get_calibration_results(args)
-    get_axiomatic_results(args)
+    # ### === Phase 3: correctness and results
+    # get_correctness(args)
+    # get_calibration_results(args)
+    # get_axiomatic_results(args)
     
     
     # python framework/run/run_framework.py
