@@ -90,7 +90,6 @@ def get_calibration_results(args):
             
             'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
             'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
-            
         )
         uncertainty_mars = uncertainty_mars_results
         uncertainty_mars_small = dict((k, uncertainty_mars[k]) for k in keys_to_use)
@@ -400,7 +399,7 @@ def get_calibration_results(args):
         )
         
         
-        ### === Combime first & second prompts 
+        ### === Combine first & second prompts 
         
         # 1)
         # uncertainty_multiply_values = uncertainty_values * uncertainty_values_second_prompt
@@ -452,6 +451,7 @@ def get_calibration_results(args):
     for uncertainty_model in ['PE', 'SE']: #, 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
         run_calibration_metrics(uncertainty_model)
     
+    
     ### === Save the calibration result ============
     print(result_dict)
     def convert_to_serializable(obj):
@@ -478,14 +478,14 @@ if __name__ == "__main__":
         'nqgold'
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative'
     ])
     
-    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
+    parser.add_argument('--accuracy_metric', type=str, default="bert_score", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
