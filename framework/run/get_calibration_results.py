@@ -40,7 +40,7 @@ def get_calibration_results(args):
     
     def create_result_df(prompt_format):
         
-        generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
+        generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
         similarities_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
         uncertainty_mars_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
         uncertainty_bb_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_bb_generation.pkl'
@@ -53,8 +53,8 @@ def get_calibration_results(args):
             similarities_dict = pickle.load(f)
         with open(uncertainty_mars_input_file, 'rb') as f:
             uncertainty_mars_results  = pickle.load(f)
-        with open(uncertainty_bb_input_file, 'rb') as f:
-            uncertainty_bb_results  = pickle.load(f)
+        # with open(uncertainty_bb_input_file, 'rb') as f:
+        #     uncertainty_bb_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
         # with open(groundedness_input_file, 'rb') as f:
@@ -103,16 +103,16 @@ def get_calibration_results(args):
         uncertainty_mars_df.rename(columns={'ids': 'id'}, inplace=True) 
         
         # 
-        uncertainty_bb_df = pd.DataFrame(uncertainty_bb_results)
-        uncertainty_bb_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
-        uncertainty_bb_small = dict((k, uncertainty_bb_df[k]) for k in uncertainty_bb_keys_to_use)
-        uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
+        # uncertainty_bb_df = pd.DataFrame(uncertainty_bb_results)
+        # uncertainty_bb_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
+        # uncertainty_bb_small = dict((k, uncertainty_bb_df[k]) for k in uncertainty_bb_keys_to_use)
+        # uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
         
         # 
         # groundedness_df = pd.DataFrame(groundedness_results)
 
         # 
-        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id').merge(uncertainty_bb_df, on='id') # .merge(groundedness_df, on='id')
+        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id') #.merge(uncertainty_bb_df, on='id') # .merge(groundedness_df, on='id')
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
@@ -471,27 +471,26 @@ def get_calibration_results(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
+        'nqgold'
     ])
-    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative'
     ])
+    
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
-        'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
+        'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
+    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
+    
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     
@@ -503,8 +502,10 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
+    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
-    parser.add_argument('--run_id', type=str, default='run_1')
+    parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

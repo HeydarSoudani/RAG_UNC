@@ -31,6 +31,7 @@ if __name__ == "__main__":
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
+        'nqgold'
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
@@ -58,6 +59,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
+    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_2')
     parser.add_argument('--device', type=int, default=0)
@@ -79,23 +81,25 @@ if __name__ == "__main__":
     set_seed(args.seed)
     
     ### === Phase 1: answer generation & cleaning
-    # generation(args)
-    generation_cad(args)
+    if args.generation_type == 'normal':
+        generation(args)
+    elif args.generation_type == 'cad':
+        generation_cad(args)
     
     ### === Phase 2: Uncertainty computation
-    # get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
+    get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
     # get_groundedness(args)
-    # get_probability(args)
-    # get_likelihoods_mars(args)
+    get_probability(args)
+    get_likelihoods_mars(args)
     
-    # get_uncertainty_mars(args)
+    get_uncertainty_mars(args)
     # get_uncertainty_bb(args)
     # # TODO: sar_uncertainty
     # # get_uncertainty_sar(args)
     
     # ### === Phase 3: correctness and results
-    # get_correctness(args)
-    # get_calibration_results(args)
+    get_correctness(args)
+    get_calibration_results(args)
     # get_axiomatic_results(args)
     
     
