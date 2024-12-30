@@ -48,7 +48,6 @@ def get_similarity(args):
     tokenizer_importance = BertTokenizerFast.from_pretrained("bert-base-uncased") 
     
     
-    
     # === Load semantic model =============
     # config = AutoConfig.from_pretrained("microsoft/deberta-large-mnli")
     # print(config.label2id)

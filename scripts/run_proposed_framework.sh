@@ -19,11 +19,11 @@ module load Python/3.10.4-GCCcore-11.3.0
 model="meta-llama/Llama-2-7b-chat-hf"
 dataset="nqgold"
 subsec="test"
-main_prompt_format="only_q"
-second_prompt_format="q_positive"
+main_prompt_format="q_negative"
+second_prompt_format="only_q"
 fraction_of_data_to_use=0.173
-run_id="run_1"
-generation_type="cad"
+run_id="run_0"
+generation_type="normal"
 
 srun python $HOME/RAG_UNC/framework/run/run_framework.py \
     --model "$model" \
@@ -33,7 +33,7 @@ srun python $HOME/RAG_UNC/framework/run/run_framework.py \
     --second_prompt_format "$second_prompt_format" \
     --fraction_of_data_to_use "$fraction_of_data_to_use" \
     --output_file_postfix "$output_file_postfix" \
-    --run_id "$run_id"\
+    --run_id "$run_id" \
     --generation_type "$generation_type"
 
 

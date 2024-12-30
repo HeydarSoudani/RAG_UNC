@@ -31,6 +31,7 @@ def generation(args):
         Seed:          {args.seed}
     """.replace('        ', ''))
     
+    
     # === Define output files ===================
     model = args.model.split('/')[-1]
     sequences_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_generation_{args.generation_type}.pkl'
