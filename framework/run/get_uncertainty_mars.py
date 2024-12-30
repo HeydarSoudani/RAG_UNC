@@ -256,27 +256,26 @@ def get_uncertainty_mars(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'trivia', 'nq', 'squad1', 'webquestions',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
+        'nqgold'
     ])
-    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
+    
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
+    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
+    
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     
@@ -288,8 +287,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
-    parser.add_argument('--affinity_mode', type=str, default='disagreement')
-    parser.add_argument('--run_id', type=str, default='run_1')
+    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

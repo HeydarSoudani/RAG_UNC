@@ -16,7 +16,7 @@ def convert_jsonl_to_dataset_static_psg(dataset, split):
         for line in tqdm(file, desc="Converting dataset ..."):
             item = json.loads(line.strip())
             
-            if dataset in ['webquestions', 'trivia', 'nq', 'squad1']:
+            if dataset in ['webquestions', 'trivia', 'nq', 'squad1', 'nqgold']:
                 data.append({
                     "question_id": item["id"],
                     "question": item["question"],
@@ -191,7 +191,7 @@ class RAGDataset:
                     
                 else:
                     similarity_score = 1.0
-                    prompt_text = self.generate_prompt_wo_ctx(question)
+                    prompt_text = self.generate_prompt_wo_ctx(example['question'])
                     return prompt_text, similarity_score
     
         else: # retrived dataset

@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
-#SBATCH --time=1:00:00
+#SBATCH --time=2:00:00
 #SBATCH --output=script_logging/slurm_%A.out
 
 
@@ -17,33 +17,37 @@ module load Python/3.10.4-GCCcore-11.3.0
 # srun python $HOME/RAG_UNC/processed_datasets/_corpus_preparation.py
 
 model="meta-llama/Llama-2-7b-chat-hf"
-dataset="webquestions"
+dataset="nqgold"
+subsec="test"
 main_prompt_format="only_q"
 second_prompt_format="q_positive"
-fraction_of_data_to_use=1.0
-run_id="run_2"
+fraction_of_data_to_use=0.173
+run_id="run_1"
+generation_type="cad"
 
 srun python $HOME/RAG_UNC/framework/run/run_framework.py \
     --model "$model" \
     --dataset "$dataset" \
+    --subsec "$subsec" \
     --main_prompt_format "$main_prompt_format" \
     --second_prompt_format "$second_prompt_format" \
     --fraction_of_data_to_use "$fraction_of_data_to_use" \
     --output_file_postfix "$output_file_postfix" \
-    --run_id "$run_id"
+    --run_id "$run_id"\
+    --generation_type "$generation_type"
 
 
 
+# generation_type:
+    # 'normal', 'cad'
 
 # prompt_format:
-# 'only_q', 'q_negative', 'q_positive',
-# 'bm25_retriever_top1', 'bm25_retriever_top5',
-# 'rerank_retriever_top1', 'rerank_retriever_top5'
-
-# mode:
-# 'seperated', 'combined'
+    # 'only_q', 'q_negative', 'q_positive',
+    # 'bm25_retriever_top1', 'bm25_retriever_top5',
+    # 'rerank_retriever_top1', 'rerank_retriever_top5'
 
 # Datasets:
+    # 'nqgold',
     # 'webquestions', 'trivia', 'nq', 'squad1',
     # 'hotpotqa', '2wikimultihopqa', 'musique'
     # 'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
@@ -57,3 +61,7 @@ srun python $HOME/RAG_UNC/framework/run/run_framework.py \
     # zephyr: "HuggingFaceH4/zephyr-7b-beta"
     # llama2: "meta-llama/Llama-2-7b-chat-hf"
     # llama3: "meta-llama/Meta-Llama-3-8B-Instruct"
+
+# mode:
+    # 'seperated', 'combined'
+
