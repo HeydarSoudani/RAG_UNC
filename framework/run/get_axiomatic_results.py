@@ -35,13 +35,16 @@ def get_axiomatic_results(args):
     # === Define output files ===================
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
-    answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_answers_equality_output__sec_{args.second_prompt_format}.jsonl'
-    axioms123_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axioms123_output__sec_{args.second_prompt_format}.json'
-    axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axiom4_output__sec_{args.second_prompt_format}.json'
-    axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_axiom5_output__sec_{args.second_prompt_format}.json'
+    answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/axiomatic_results/{model}_{args.temperature}_answers_equality_output__sec_{args.second_prompt_format}.jsonl'
+    axioms123_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/axiomatic_results/{model}_{args.temperature}_axioms123_output__sec_{args.second_prompt_format}.json'
+    axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/axiomatic_results/{model}_{args.temperature}_axiom4_output__sec_{args.second_prompt_format}.json'
+    axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/axiomatic_results/{model}_{args.temperature}_axiom5_output__sec_{args.second_prompt_format}.json'
     
-    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
-    sequence_input_secondry = f'{base_dir_output}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
+    answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
+    os.makedirs(answers_equality_output_dir, exist_ok=True)
+    
+    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_secondry = f'{base_dir_output}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
     with open(sequence_input_secondry, 'rb') as infile:
@@ -83,9 +86,9 @@ def get_axiomatic_results(args):
     def create_result_df(prompt_format):
         
         similarities_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-        likelihoods_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_generation.pkl'
+        likelihoods_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
         correctness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
-        generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation.pkl'
+        generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
         # groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
         
         with open(generation_file, 'rb') as infile:
@@ -226,6 +229,7 @@ def get_axiomatic_results(args):
         semantically_similar_list = []
         semantically_not_similar_list = []
         
+        ### Similar to semantic similarity
         with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
             for i, sample in tqdm(enumerate(sequence_1)):
                 id_ = sample['id']
@@ -449,9 +453,15 @@ def get_axiomatic_results(args):
         #             agree_list.append(sample['id'])
         #         else:
         #             non_agree_list.append(sample['id'])
-        with open(answers_equality_output_jsonl_file, 'r') as json_file:
-            data = json.load(json_file)
-        agree_list, non_agree_list = data['semantically_similar'], data['semantically_not_similar']
+        agree_list, non_agree_list = [], []
+        with open(answers_equality_output_jsonl_file, 'r') as file:
+            for line in file:
+                if line.strip():
+                    item = json.loads(line)
+                    if item['is_equal']:
+                        agree_list.append(item['id'])
+                    else:
+                        non_agree_list.append(item['id'])
         
     else:
         print("Computing similarity ...")
@@ -689,12 +699,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'webquestions', 'nq', 'trivia', 'squad1',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
+        'nqgold'
     ])
-    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
@@ -720,8 +731,11 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
-    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--generation_type', type=str, default='cad', choices=['normal', 'cad'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
+    parser.add_argument('--run_id', type=str, default='run_1')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

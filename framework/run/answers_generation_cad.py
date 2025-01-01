@@ -136,7 +136,7 @@ class CAD:
 
         return next_token
 
-    def generate(self, 
+    def generate(self,
                 batch_with_context, # : List[str] 
                 batch_wo_context,   # : Optional[List[str]] = None 
                 alpha: float = 0.5,
@@ -163,13 +163,11 @@ class CAD:
         #     input_ids_with_contexts = input_ids
         #     attention_mask_with_contexts = attention_mask
 
-        
         input_ids_with_contexts = batch_with_context['input_ids'].to(self.device).reshape(1, -1)
         attention_mask_with_contexts = batch_with_context['attention_mask'].to(self.device).reshape(1, -1)
         input_ids_wo_contexts = batch_wo_context['input_ids'].to(self.device).reshape(1, -1)
         attention_mask_wo_contexts = batch_wo_context['attention_mask'].to(self.device).reshape(1, -1)
-
-
+        
         # Initialize variables for generation loop
         cur_len = 0
         batch_size = len(input_ids_wo_contexts)
@@ -188,7 +186,8 @@ class CAD:
                 outputs_with_contexts = self.model(input_ids_with_contexts, attention_mask=attention_mask_with_contexts)
                 next_token_logits_with_contexts = outputs_with_contexts.logits[:, -1, :]
                 # Context-aware decoding
-                next_token_logits = (1 + alpha) * next_token_logits_with_contexts - alpha * next_token_logits
+                # next_token_logits = (1 + alpha) * next_token_logits_with_contexts - alpha * next_token_logits # try main
+                next_token_logits = (1 - alpha) * next_token_logits_with_contexts + alpha * next_token_logits # try 2
 
                 # Predict next token according to decoding strategy
                 next_token = self.predict_next_token(logits=next_token_logits, 
@@ -240,6 +239,7 @@ def generation_cad(args):
     
     print("\n--- Step 1: Answers generation (CAD) ...")
     print(f"""
+        Alpha Gen.:    {args.alpha_generation}
         Model name:    {args.model}
         Dataset:       {args.dataset} ({args.fraction_of_data_to_use})
         Prompt (1st):  {args.main_prompt_format}
@@ -311,7 +311,7 @@ def generation_cad(args):
                     batch_with_context=batch,
                     batch_wo_context=train_dataset_scdry[idx],
                     max_length=args.max_new_tokens,
-                    alpha=0.5,
+                    alpha=args.alpha_generation,
                     decoding_strategy='top_p',
                     top_p_value=args.top_p,
                     use_repetition_penalty=True,
@@ -338,14 +338,13 @@ def generation_cad(args):
                     cad_model.tokenizer.decode(generation, skip_special_tokens=True)
                 ) # We already skip special tokens
             sequence_dict['generated_texts'] = generated_texts
-    
 
             # === Generate most likely =============
             most_likely_generation = cad_model.generate(
                 batch_with_context=batch,
                 batch_wo_context=train_dataset_scdry[idx],
                 max_length=args.max_new_tokens,
-                alpha=0.5,
+                alpha=args.alpha_generation,
                 decoding_strategy='greedy',
                 use_repetition_penalty=True,
                 repetition_penalty_value=1.5,
@@ -373,7 +372,6 @@ def generation_cad(args):
     print(f"Results saved to {sequences_output_file}")
 
 
-    
     ### === Loop for cleaning the generated data =
     # = Second file in the main code =  
     print('Cleaning the generated data ...')
@@ -458,7 +456,9 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='cad', choices=['normal', 'cad'])
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)

@@ -15,8 +15,9 @@ from utils.utils import set_seed
 
 
 def get_probability(args):
-    print("\n--- Step 3-1: Getting Probability ...")
+    print("\n--- Phase 2: Getting Probability ...")
     print(f"""
+        Alpha Prob.:   {args.alpha_probability}
         Model name:    {args.model}
         Dataset:       {args.dataset}
         Prompt (1st):  {args.main_prompt_format}
@@ -27,12 +28,16 @@ def get_probability(args):
     
     # === Files ======================================
     model = args.model.split('/')[-1]
+    generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     # inputs
     sequence_input_main = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
     sequence_input_secondry = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
     # outputs
-    probabilities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.pkl'
-    probabilities_output_jsonl_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.jsonl' 
+    probabilities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.pkl'
+    probabilities_output_jsonl_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.jsonl' 
+    
+    probabilities_output_dir = os.path.dirname(probabilities_output_file)
+    os.makedirs(probabilities_output_dir, exist_ok=True)
     
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
@@ -86,10 +91,8 @@ def get_probability(args):
         
         return probs
     
-    
     # TODO: CAD for probability
     def get_probability_cad(prompt, prompt_secondry, generation):
-        alpha = 0.5
         _generation = generation[generation != tokenizer.pad_token_id]
         
         # For main prompt
@@ -114,7 +117,8 @@ def get_probability(args):
         _logits_sec = _logits_sec.float()
         
         # probability
-        logits_cad = (1+alpha) * _logits_sec - alpha * _logits
+        # logits_cad = (1+alpha) * _logits_sec - alpha * _logits # try main
+        logits_cad = (1 - args.alpha_probability) * _logits + args.alpha_probability * _logits_sec # try 2
         ids = p_generation[len_prompt:]
         probs = torch.nn.functional.softmax(logits_cad, dim=1)
         probs = torch.gather(probs, dim=1, index=ids.view(-1, 1))
@@ -162,7 +166,7 @@ def get_probability(args):
                         probs_secondry = torch.tensor([])
                     
                     # third prompt: only answer
-                    probs_only_answer = get_probability_unconditioned(prompt, cur_generation)
+                    # probs_only_answer = get_probability_unconditioned(prompt, cur_generation)
                     
                     # Forth prompt: CAD
                     if id_ in _sequences_secondry:
@@ -239,11 +243,15 @@ if __name__ == "__main__":
         'nqgold'
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
@@ -264,7 +272,9 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.1)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
