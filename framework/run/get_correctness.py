@@ -28,12 +28,14 @@ def get_correctness(args):
 
     # === Define output file ========================
     model = args.model.split('/')[-1]
+    # inputs
+    sequence_input = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
+    similarities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
+    # outputs
     correctness_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_correctness.pkl'
     correctness_output_jsonl_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_correctness.jsonl'
-    similarities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-    input_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
     
-    with open(input_file, 'rb') as infile:
+    with open(sequence_input, 'rb') as infile:
         sequences = pickle.load(infile)
     with open(similarities_file, 'rb') as f:
         similarities_dict = pickle.load(f)
@@ -120,11 +122,15 @@ if __name__ == "__main__":
         'nqgold'
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
@@ -144,9 +150,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
-    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    parser.add_argument('--generation_type', type=str, default='cad', choices=['normal', 'cad'])
     # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
-    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--run_id', type=str, default='run_2')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

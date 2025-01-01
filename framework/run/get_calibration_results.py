@@ -33,7 +33,9 @@ def get_calibration_results(args):
     # === Define output files ===================
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}'
-    calibration_output_file = f'{base_dir_output}/{args.main_prompt_format}/calibration_results/{model}_{args.temperature}_calibration_results.jsonl'
+    generation_type = f"prob_alpha_{str(args.alpha_probability)}"
+    
+    calibration_output_file = f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/calibration_results/{model}_{args.temperature}_calibration_results.jsonl'
     
     calibration_output_dir = os.path.dirname(calibration_output_file)
     os.makedirs(calibration_output_dir, exist_ok=True)
@@ -42,9 +44,9 @@ def get_calibration_results(args):
         
         generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
         similarities_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-        uncertainty_mars_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
-        uncertainty_bb_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_uncertainty_bb_generation.pkl'
         correctness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
+        uncertainty_mars_input_file = f'{base_dir_output}/{prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
+        uncertainty_bb_input_file = f'{base_dir_output}/{prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_bb_generation.pkl'
         # groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
         
         with open(generation_file, 'rb') as infile:
@@ -162,9 +164,9 @@ def get_calibration_results(args):
         
         # non-binarized accuracy
         correctness_results['exact_match_mean'] = results['exact_match'].mean()
-        correctness_results['bem_score_mean'] = results['bem_score'].mean()
-        correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
         correctness_results['rougeL_score_mean'] = results['rouge_score'].apply(lambda x: x['rougeL']).mean()
+        correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
+        correctness_results['bem_score_mean'] = results['bem_score'].mean()
         if args.accuracy_metric in ['bem_score', 'gpt_score']:
             one_minus_correctness = 1 - results[args.accuracy_metric]
         elif args.accuracy_metric == 'rouge_score':
@@ -214,7 +216,7 @@ def get_calibration_results(args):
         plt.xticks(np.linspace(0.1, 1.0, 10))  # Set x-ticks as specified
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/ECE_correctness_vs_confidence_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/calibration_results/ECE_correctness_vs_confidence_{prefix}.png')
     
     def plot_correctness_vs_uncertainty(correctness, uncertainty, metric_text, prefix, num_bins=10):
         max_uncertainty_val = 20
@@ -252,7 +254,7 @@ def get_calibration_results(args):
         plt.xticks(range(0, max_uncertainty_val+1, int(max_uncertainty_val/10)))  # Set x-ticks as specified
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
     
     def plot_correctness_vs_uncertainty_for_axioms(correctness, uncertainty, axiom_correctness, axiom_uncertainty, metric_text, prefix, num_bins=10):
         max_uncertainty_val = 20
@@ -296,7 +298,7 @@ def get_calibration_results(args):
         plt.xticks(range(0, max_uncertainty_val+1))
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
     
     def plot_correctness_vs_uncertainties_indication_diagram(correctness, uncertainty, rce_text, prefix, num_bins=10):
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -312,7 +314,7 @@ def get_calibration_results(args):
         )
         plt.grid()
         plt.tight_layout()
-        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/calibration_results/RCE_correctness_vs_uncertainty_{prefix}.png')
+        plt.savefig(f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/calibration_results/RCE_correctness_vs_uncertainty_{prefix}.png')
     
     def run_calibration_metrics(uncertainty_model):
         
@@ -479,14 +481,18 @@ if __name__ == "__main__":
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative'
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative'
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     
-    parser.add_argument('--accuracy_metric', type=str, default="bert_score", choices=[
-        'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
+        'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
     
@@ -503,7 +509,8 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--alpha_generation', type=float, default=0.1)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)

@@ -196,7 +196,7 @@ class RAGDataset:
     
         else: # retrived dataset
             # selected_context = random.choice(example['ctxs'])
-            selected_context = '\n'.join([ctx['context'] for ctx in example['ctxs'][:5]])
+            selected_context = '\n'.join([ctx['context'] for ctx in example['ctxs'][:1]])
             sim_score = 1.0
             prompt_text = self.generate_prompt_with_ctx(example['question'], selected_context)
             

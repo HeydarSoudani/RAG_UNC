@@ -44,7 +44,7 @@ if __name__ == "__main__":
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
@@ -60,12 +60,15 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_2')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()
     
+    ### === Define CUDA device =================== 
     args.output_dir = "framework/run_output"
     args.device = torch.device("cuda:" + str(args.device) if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
@@ -75,19 +78,21 @@ if __name__ == "__main__":
     else:
         print("CUDA is not available. No GPUs detected.")
     
+    
     if args.main_prompt_format != 'only_q':
         args.second_prompt_format == 'only_q'
     
+    
+    ### === Run Steps ============================
     set_seed(args.seed)
+    ## === Phase 1: answer generation & cleaning
+    # if args.generation_type == 'normal':
+    #     generation(args)
+    # elif args.generation_type == 'cad':
+    #     generation_cad(args)
     
-    ### === Phase 1: answer generation & cleaning
-    if args.generation_type == 'normal':
-        generation(args)
-    elif args.generation_type == 'cad':
-        generation_cad(args)
-    
-    ### === Phase 2: Uncertainty computation
-    get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
+    # ## === Phase 2: Uncertainty computation
+    # get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
     # get_groundedness(args)
     get_probability(args)
     get_likelihoods_mars(args)
@@ -97,8 +102,8 @@ if __name__ == "__main__":
     # # TODO: sar_uncertainty
     # # get_uncertainty_sar(args)
     
-    # ### === Phase 3: correctness and results
-    get_correctness(args)
+    ## === Phase 3: correctness and results
+    # get_correctness(args)
     get_calibration_results(args)
     # get_axiomatic_results(args)
     
@@ -116,7 +121,7 @@ if __name__ == "__main__":
 
 
 
-    # For greedy search
+    # For grid search
     # model = args.model.split('/')[-1]
     # greedy_output_jsonl_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_{args.mode}_greedy_results_1.jsonl'
     # values = np.arange(0, 1.1, 0.1)

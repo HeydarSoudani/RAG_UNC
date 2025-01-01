@@ -24,8 +24,11 @@ def get_uncertainty_mars(args):
 
     # === Define/Read In/Out files ========================
     model = args.model.split('/')[-1]
-    likelihoods_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_likelihoods_generation.pkl'
-    uncertainty_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
+    generation_type = f"prob_alpha_{str(args.alpha_probability)}"
+    # inputs
+    likelihoods_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
+    # outputs
+    uncertainty_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
 
     with open(likelihoods_file, 'rb') as infile:
         likelihoods = pickle.load(infile)
@@ -263,11 +266,15 @@ if __name__ == "__main__":
         'nqgold'
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
@@ -288,7 +295,9 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)

@@ -276,7 +276,9 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
