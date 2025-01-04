@@ -16,7 +16,7 @@ def convert_jsonl_to_dataset_static_psg(dataset, split):
         for line in tqdm(file, desc="Converting dataset ..."):
             item = json.loads(line.strip())
             
-            if dataset in ['webquestions', 'trivia', 'nq', 'squad1', 'nqgold']:
+            if dataset in ['webquestions', 'trivia', 'nq', 'squad1', 'nqgold', 'popqa']:
                 data.append({
                     "question_id": item["id"],
                     "question": item["question"],
