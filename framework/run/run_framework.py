@@ -28,10 +28,10 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
     parser.add_argument('--dataset', type=str, default='webquestions', choices=[
-        'trivia', 'nq', 'squad1', 'webquestions',
+        'nqgold', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
-        'nqgold'
+        'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
@@ -78,7 +78,6 @@ if __name__ == "__main__":
     else:
         print("CUDA is not available. No GPUs detected.")
     
-    
     if args.main_prompt_format != 'only_q':
         args.second_prompt_format == 'only_q'
     
@@ -91,8 +90,8 @@ if __name__ == "__main__":
     # elif args.generation_type == 'cad':
     #     generation_cad(args)
     
-    # ## === Phase 2: Uncertainty computation
-    # get_similarity(args)   # this generates importance score | # works with: pip install transformers==4.37.2
+    ## === Phase 2: Uncertainty computation
+    # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
     # get_groundedness(args)
     get_probability(args)
     get_likelihoods_mars(args)

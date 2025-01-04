@@ -245,10 +245,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'trivia', 'nq', 'squad1', 'webquestions',
+        'nqgold', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
-        'nqgold'
+        'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[

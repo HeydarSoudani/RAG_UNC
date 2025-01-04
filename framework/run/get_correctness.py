@@ -44,7 +44,7 @@ def get_correctness(args):
     # === Define correctness scores =================
     bem_score = BemScore()
     bert_score = BertScore()
-    rouge_score = RougeScore()
+    # rouge_score = RougeScore()
     exact_match_score = ExactMatch()
     # llama_score = LLamaScore(args.llama_eval_model, args.device)
     
@@ -77,12 +77,12 @@ def get_correctness(args):
             bem_score_ = bem_score(question, reference_answers, candidate)
             bert_score_ = bert_score(reference_answers, candidate)
             exact_match_ = exact_match_score(reference_answers, candidate)
-            rouge_score_ = rouge_score(reference_answers, candidate)
+            # rouge_score_ = rouge_score(reference_answers, candidate)
             # llama_score_ = llama_score(question, reference_answers, candidate)
             sequence_dict['bem_score'] = bem_score_
             sequence_dict['bert_score'] = bert_score_
             sequence_dict['exact_match'] = exact_match_
-            sequence_dict['rouge_score'] = rouge_score_
+            sequence_dict['rouge_score'] = 0.0 #rouge_score_
             # sequence_dict['llama_score'] = llama_score_
             correctness_sequences.append(sequence_dict)
             
@@ -115,14 +115,14 @@ def get_correctness(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'trivia', 'nq', 'squad1', 'webquestions',
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+        'nqgold', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
-        'nqgold'
+        'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     ])
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
     
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.057)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     
@@ -150,9 +150,11 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
-    parser.add_argument('--generation_type', type=str, default='cad', choices=['normal', 'cad'])
-    # parser.add_argument('--with_groundedness', type=str, default='yes', choices=['no', 'yes'])
-    parser.add_argument('--run_id', type=str, default='run_2')
+    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    parser.add_argument('--alpha_generation', type=float, default=0.1)
+    parser.add_argument('--alpha_probability', type=float, default=0.1)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
+    parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()

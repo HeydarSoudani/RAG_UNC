@@ -11,7 +11,7 @@ from utils.utils import set_seed
 
 
 def get_uncertainty_mars(args):
-    print("\n--- Step 3-2: Get Likelihoods ...")
+    print("\n--- Step 3-2: Get Uncertainty ...")
     print(f"""
         Model name: {args.model}
         Dataset: {args.dataset}
@@ -106,6 +106,15 @@ def get_uncertainty_mars(args):
             'most_likely_neg_log_likelihoods_importance_mean_third_prompt',
             'most_likely_neg_log_likelihoods_importance_max_third_prompt',
             'most_likely_neg_log_likelihoods_importance_min_third_prompt',
+            
+            'average_neg_log_likelihoods_forth_prompt',
+            'average_neg_log_likelihoods_importance_mean_forth_prompt',
+            'average_neg_log_likelihoods_importance_max_forth_prompt',
+            'average_neg_log_likelihoods_importance_min_forth_prompt',
+            'most_likely_neg_log_likelihoods_forth_prompt', 
+            'most_likely_neg_log_likelihoods_importance_mean_forth_prompt',
+            'most_likely_neg_log_likelihoods_importance_max_forth_prompt',
+            'most_likely_neg_log_likelihoods_importance_min_forth_prompt',
             
             'similarity_score',
             'semantic_set_ids',
@@ -218,6 +227,31 @@ def get_uncertainty_mars(args):
         overall_results['semantic_set_ids']
     )
     
+    # === forth prompt ======== 
+    # PE & SE
+    average_predictive_entropy_forth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_forth_prompt'])
+    predictive_entropy_over_concepts_forth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_forth_prompt'],
+        overall_results['semantic_set_ids']
+    )
+    # With MARS
+    average_predictive_entropy_importance_mean_forth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_forth_prompt'])
+    average_predictive_entropy_importance_max_forth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_forth_prompt'])
+    average_predictive_entropy_importance_min_forth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_forth_prompt'])
+    predictive_entropy_over_concepts_importance_mean_forth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_mean_forth_prompt'],
+        overall_results['semantic_set_ids']
+    )    
+    predictive_entropy_over_concepts_importance_max_forth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_max_forth_prompt'],
+        overall_results['semantic_set_ids']
+    )    
+    predictive_entropy_over_concepts_importance_min_forth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_min_forth_prompt'],
+        overall_results['semantic_set_ids']
+    )
+    
+    
     # === Write in variables ==================
     # = Main prompt ===
     overall_results['average_predictive_entropy_main_prompt'] = average_predictive_entropy_main_prompt
@@ -249,6 +283,16 @@ def get_uncertainty_mars(args):
     overall_results['predictive_entropy_over_concepts_importance_max_third_prompt'] = predictive_entropy_over_concepts_importance_max_third_prompt
     overall_results['predictive_entropy_over_concepts_importance_min_third_prompt'] = predictive_entropy_over_concepts_importance_min_third_prompt
     
+    # = forth prompt ===
+    overall_results['average_predictive_entropy_forth_prompt'] = average_predictive_entropy_forth_prompt
+    overall_results['predictive_entropy_over_concepts_forth_prompt'] = predictive_entropy_over_concepts_forth_prompt
+    overall_results['average_predictive_entropy_importance_mean_forth_prompt'] = average_predictive_entropy_importance_mean_forth_prompt
+    overall_results['average_predictive_entropy_importance_max_forth_prompt'] = average_predictive_entropy_importance_max_forth_prompt
+    overall_results['average_predictive_entropy_importance_min_forth_prompt'] = average_predictive_entropy_importance_min_forth_prompt
+    overall_results['predictive_entropy_over_concepts_importance_mean_forth_prompt'] = predictive_entropy_over_concepts_importance_mean_forth_prompt
+    overall_results['predictive_entropy_over_concepts_importance_max_forth_prompt'] = predictive_entropy_over_concepts_importance_max_forth_prompt
+    overall_results['predictive_entropy_over_concepts_importance_min_forth_prompt'] = predictive_entropy_over_concepts_importance_min_forth_prompt
+    
     
     ### === Save the uncertainty result ============
     with open(uncertainty_output_file, 'wb') as ofile:
@@ -259,14 +303,14 @@ def get_uncertainty_mars(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'trivia', 'nq', 'squad1', 'webquestions',
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+        'nqgold', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
-        'nqgold'
+        'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top5', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

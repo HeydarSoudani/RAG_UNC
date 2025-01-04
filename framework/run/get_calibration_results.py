@@ -77,7 +77,7 @@ def get_calibration_results(args):
         
         # 
         correctness_df = pd.DataFrame(correctness_results)
-        correctness_keys_to_use = ('id', 'bem_score', 'bert_score', 'exact_match', 'rouge_score')
+        correctness_keys_to_use = ('id', 'bem_score', 'bert_score', 'exact_match') # , 'rouge_score'
         correctness_small = dict((k, correctness_df[k]) for k in correctness_keys_to_use)
         correctness_df = pd.DataFrame.from_dict(correctness_small)
         
@@ -86,12 +86,12 @@ def get_calibration_results(args):
             'ids',
             'average_predictive_entropy_main_prompt', 'predictive_entropy_over_concepts_main_prompt',
             'average_predictive_entropy_importance_max_main_prompt', 'predictive_entropy_over_concepts_importance_max_main_prompt',
-            
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
-            
             'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
             'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
+            'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
         )
         uncertainty_mars = uncertainty_mars_results
         uncertainty_mars_small = dict((k, uncertainty_mars[k]) for k in keys_to_use)
@@ -120,8 +120,8 @@ def get_calibration_results(args):
     
     # === Filtering samples with very high entropy
     result_df_main = create_result_df(args.main_prompt_format)
-    result_df_main_filtered_pe = result_df_main[result_df_main['average_predictive_entropy_main_prompt'] <= 100]
-    result_df_main_filtered_se = result_df_main[result_df_main['predictive_entropy_over_concepts_main_prompt'] <= 100]
+    result_df_main_filtered_pe = result_df_main[result_df_main['average_predictive_entropy_main_prompt'] <= 1000]
+    result_df_main_filtered_se = result_df_main[result_df_main['predictive_entropy_over_concepts_main_prompt'] <= 1000]
     
     # === 
     keys_mapping = {
@@ -133,7 +133,6 @@ def get_calibration_results(args):
             'EigV': 'spectral_u',
             'Ecc': 'ecc_u',
             'Deg': 'degree_u',
-            
         },
         'second_prompt': {
             'PE': 'average_predictive_entropy_second_prompt',
@@ -146,6 +145,12 @@ def get_calibration_results(args):
             'SE': 'predictive_entropy_over_concepts_third_prompt',
             'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
             'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
+        },
+        'forth_prompt': {
+            'PE': 'average_predictive_entropy_forth_prompt',
+            'SE': 'predictive_entropy_over_concepts_forth_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
         } 
     }
     ece_estimate = ECE_estimate()
@@ -164,7 +169,7 @@ def get_calibration_results(args):
         
         # non-binarized accuracy
         correctness_results['exact_match_mean'] = results['exact_match'].mean()
-        correctness_results['rougeL_score_mean'] = results['rouge_score'].apply(lambda x: x['rougeL']).mean()
+        # correctness_results['rougeL_score_mean'] = results['rouge_score'].apply(lambda x: x['rougeL']).mean()
         correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
         correctness_results['bem_score_mean'] = results['bem_score'].mean()
         if args.accuracy_metric in ['bem_score', 'gpt_score']:
@@ -352,27 +357,21 @@ def get_calibration_results(args):
         result_dict[uncertainty_model]['ECE'] = ece_estimate(correctness, confidence_values)
         result_dict[uncertainty_model]['RCE'] = plugin_RCE_est(correctness, uncertainty_values)
         
-        plot_correctness_vs_confidence(
-            correctness, confidence_values,
-            result_dict[uncertainty_model]['ECE'], prefix=uncertainty_model,
-            num_bins=40
-        )
         plot_correctness_vs_uncertainty(
             correctness, uncertainty_values,
             f"AUROC: {round(result_dict[uncertainty_model]['AUROC'], 4)}\nECE: {round(result_dict[uncertainty_model]['ECE'], 4)}",
             prefix=uncertainty_model, num_bins=40
         )
-        plot_correctness_vs_uncertainties_indication_diagram(
-            correctness, uncertainty_values,
-            result_dict[uncertainty_model]['RCE'], prefix=uncertainty_model,
-            num_bins=30
-        )
-        
-        # coef_1 = result_df['most_likely_kl_main_second'].apply(lambda x: x.get('max', None))
-        # coef_2 = result_df['most_likely_kl_second_third'].apply(lambda x: x.get('max', None))
-        # coef_3 = result_df['most_likely_kl_main_third'].apply(lambda x: x.get('max', None)) 
-        # coef_1_ = coef_1 / (coef_1+coef_2)
-        # coef_2_ = coef_2 / (coef_1+coef_2)
+        # plot_correctness_vs_confidence(
+        #     correctness, confidence_values,
+        #     result_dict[uncertainty_model]['ECE'], prefix=uncertainty_model,
+        #     num_bins=40
+        # )
+        # plot_correctness_vs_uncertainties_indication_diagram(
+        #     correctness, uncertainty_values,
+        #     result_dict[uncertainty_model]['RCE'], prefix=uncertainty_model,
+        #     num_bins=30
+        # )
         
         ### === For second prompt
         unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
@@ -389,8 +388,6 @@ def get_calibration_results(args):
         ### === For third prompt
         unc_model_key_third_prompt = keys_mapping['third_prompt'][uncertainty_model]
         uncertainty_values_third_prompt = result_df[f"{unc_model_key_third_prompt}"]
-        # print(uncertainty_values_third_prompt.nsmallest(10))
-        # print(uncertainty_values_third_prompt.nlargest(10))
         auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_third_prompt)
         confidence_values_third_prompt = uncertainty_to_confidence_min_max(uncertainty_values_third_prompt)
         ece_test2 = ece_estimate(correctness, confidence_values_third_prompt)
@@ -400,8 +397,25 @@ def get_calibration_results(args):
             prefix=f"{uncertainty_model}_third_prompt", num_bins=40
         )
         
+        ### === For forth prompt
+        unc_model_key_forth_prompt = keys_mapping['forth_prompt'][uncertainty_model]
+        uncertainty_values_forth_prompt = result_df[f"{unc_model_key_forth_prompt}"]
+        auroc_test2 = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values_forth_prompt)
+        confidence_values_forth_prompt = uncertainty_to_confidence_min_max(uncertainty_values_forth_prompt)
+        ece_test2 = ece_estimate(correctness, confidence_values_forth_prompt)
+        plot_correctness_vs_uncertainty(
+            correctness, uncertainty_values_forth_prompt,
+            f'AUROC: {round(auroc_test2, 4)}\nECE: {round(ece_test2, 4)}',
+            prefix=f"{uncertainty_model}_forth_prompt", num_bins=40
+        )
+        
         
         ### === Combine first & second prompts 
+        # coef_1 = result_df['most_likely_kl_main_second'].apply(lambda x: x.get('max', None))
+        # coef_2 = result_df['most_likely_kl_second_third'].apply(lambda x: x.get('max', None))
+        # coef_3 = result_df['most_likely_kl_main_third'].apply(lambda x: x.get('max', None)) 
+        # coef_1_ = coef_1 / (coef_1+coef_2)
+        # coef_2_ = coef_2 / (coef_1+coef_2)
         
         # 1)
         # uncertainty_multiply_values = uncertainty_values * uncertainty_values_second_prompt
@@ -473,14 +487,14 @@ def get_calibration_results(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'trivia', 'nq', 'squad1', 'webquestions',
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+        'nqgold', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
-        'nqgold'
+        'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -509,7 +523,7 @@ if __name__ == "__main__":
     parser.add_argument('--top_p', type=float, default=1.0)
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
-    parser.add_argument('--alpha_generation', type=float, default=0.1)
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
     parser.add_argument('--alpha_probability', type=float, default=0.5)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
