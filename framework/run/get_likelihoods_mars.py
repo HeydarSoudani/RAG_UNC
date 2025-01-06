@@ -29,13 +29,14 @@ def get_likelihoods_mars(args):
     # === Read the generation & similarities data ===
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
+    base_dir = f'{args.output_dir}/{args.dataset}/archive_500samples/{args.run_id}'
     # inputs
-    sequence_input = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
-    similarities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-    # probabilities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_probabilities_generation.pkl'
-    probabilities_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.pkl'
+    sequence_input = f'{base_dir}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
+    similarities_file = f'{base_dir}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
+    # probabilities_file = f'{base_dir}/{args.prompt_format}/{model}_{args.temperature}_probabilities_generation.pkl'
+    probabilities_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.pkl'
     # outputs
-    likelihoods_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
+    likelihoods_output_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
     
 
     with open(sequence_input, 'rb') as infile:
@@ -163,6 +164,11 @@ def get_likelihoods_mars(args):
         average_neg_log_likelihoods_importance_mean_forth_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_max_forth_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_min_forth_prompt = torch.zeros((generations.shape[0],))
+        # Fifth prompt format
+        average_neg_log_likelihoods_fifth_prompt = torch.zeros((generations.shape[0],))
+        average_neg_log_likelihoods_importance_mean_fifth_prompt = torch.zeros((generations.shape[0],))
+        average_neg_log_likelihoods_importance_max_fifth_prompt = torch.zeros((generations.shape[0],))
+        average_neg_log_likelihoods_importance_min_fifth_prompt = torch.zeros((generations.shape[0],))
         
         ### = For generations ===============================
         for generation_index in range(generations.shape[0]):
@@ -279,6 +285,37 @@ def get_likelihoods_mars(args):
                 average_neg_log_likelihoods_importance_mean_forth_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_max_forth_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_min_forth_prompt[generation_index] = score
+                
+            
+            ### === Fifth prompt =============================
+            probs_fifth = probabilities_generations[generation_index][6]
+            if len(probs_fifth) > 0:
+                model_output_loss_fifth = compute_token_nll(probs_fifth) 
+                model_output_loss_importance_mean_fifth = compute_token_nll_importance_phrase(
+                    generation, probs_fifth,
+                    importance_score, phrases, mode='mean'
+                )
+                model_output_loss_importance_max_fifth = compute_token_nll_importance_phrase(
+                    generation, probs_fifth,
+                    importance_score, phrases, mode='max'
+                )
+                model_output_loss_importance_min_fifth = compute_token_nll_importance_phrase(
+                    generation, probs_fifth,
+                    importance_score, phrases, mode='min'
+                )
+                
+                average_neg_log_likelihoods_fifth_prompt[generation_index] = model_output_loss_fifth
+                average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = model_output_loss_importance_mean_fifth
+                average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = model_output_loss_importance_max_fifth
+                average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = model_output_loss_importance_min_fifth
+            
+            else: 
+                score = 100000
+                average_neg_log_likelihoods_fifth_prompt[generation_index] = score
+                average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = score
+                average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = score
+                average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = score
+            
 
 
         ### = For most-likely ===============================
@@ -366,7 +403,7 @@ def get_likelihoods_mars(args):
                 most_likely_model_output_loss_importance_min_third_prompt = score
                 
             
-            # === forth prompt ===============================
+            # === Forth prompt ===============================
             probs_forth = probabilities_most_likely[5]
             
             if len(probs_forth) > 0:
@@ -395,6 +432,37 @@ def get_likelihoods_mars(args):
                 most_likely_model_output_loss_importance_max_forth_prompt = score
                 most_likely_model_output_loss_importance_min_forth_prompt = score
             
+            
+            # === Fifth prompt ===============================
+            probs_fifth = probabilities_most_likely[5]
+            
+            if len(probs_fifth) > 0:
+                most_likely_model_output_loss_fifth_prompt = compute_token_nll(probs_fifth)
+                most_likely_model_output_loss_importance_mean_fifth_prompt = compute_token_nll_importance_phrase(
+                    _generation_most_likely, probs_fifth,
+                    importance_score_most_likely[0], phrases, mode='mean'
+                )
+                most_likely_model_output_loss_importance_max_fifth_prompt = compute_token_nll_importance_phrase(
+                    _generation_most_likely, probs_fifth,
+                    importance_score_most_likely[0], phrases, mode='max'
+                )
+                most_likely_model_output_loss_importance_min_fifth_prompt = compute_token_nll_importance_phrase(
+                    _generation_most_likely, probs_fifth,
+                    importance_score_most_likely[0], phrases, mode='min'
+                )
+                most_likely_model_output_loss_fifth_prompt = most_likely_model_output_loss_fifth_prompt.cpu()
+                most_likely_model_output_loss_importance_mean_fifth_prompt = most_likely_model_output_loss_importance_mean_fifth_prompt.cpu()
+                most_likely_model_output_loss_importance_max_fifth_prompt = most_likely_model_output_loss_importance_max_fifth_prompt.cpu()
+                most_likely_model_output_loss_importance_min_fifth_prompt = most_likely_model_output_loss_importance_min_fifth_prompt.cpu()
+
+            else: 
+                score = 100000
+                most_likely_model_output_loss_fifth_prompt = score
+                most_likely_model_output_loss_importance_mean_fifth_prompt = score
+                most_likely_model_output_loss_importance_max_fifth_prompt = score
+                most_likely_model_output_loss_importance_min_fifth_prompt = score
+            
+            
         else:
             score = 100000
             most_likely_model_output_loss_main_prompt = score
@@ -416,6 +484,11 @@ def get_likelihoods_mars(args):
             most_likely_model_output_loss_importance_mean_forth_prompt = score
             most_likely_model_output_loss_importance_max_forth_prompt = score
             most_likely_model_output_loss_importance_min_forth_prompt = score
+            
+            most_likely_model_output_loss_fifth_prompt = score
+            most_likely_model_output_loss_importance_mean_fifth_prompt = score
+            most_likely_model_output_loss_importance_max_fifth_prompt = score
+            most_likely_model_output_loss_importance_min_fifth_prompt = score
             
             
         ### = Write to file =========================
@@ -465,6 +538,16 @@ def get_likelihoods_mars(args):
         result_dict['most_likely_neg_log_likelihoods_importance_mean_forth_prompt'] = most_likely_model_output_loss_importance_mean_forth_prompt
         result_dict['most_likely_neg_log_likelihoods_importance_max_forth_prompt'] = most_likely_model_output_loss_importance_max_forth_prompt
         result_dict['most_likely_neg_log_likelihoods_importance_min_forth_prompt'] = most_likely_model_output_loss_importance_min_forth_prompt
+        
+        # Fifth prompt
+        result_dict['average_neg_log_likelihoods_fifth_prompt'] = average_neg_log_likelihoods_fifth_prompt.cpu()
+        result_dict['average_neg_log_likelihoods_importance_mean_fifth_prompt'] = average_neg_log_likelihoods_importance_mean_fifth_prompt.cpu()
+        result_dict['average_neg_log_likelihoods_importance_max_fifth_prompt'] = average_neg_log_likelihoods_importance_max_fifth_prompt.cpu()
+        result_dict['average_neg_log_likelihoods_importance_min_fifth_prompt'] = average_neg_log_likelihoods_importance_min_fifth_prompt.cpu()
+        result_dict['most_likely_neg_log_likelihoods_fifth_prompt'] = most_likely_model_output_loss_fifth_prompt
+        result_dict['most_likely_neg_log_likelihoods_importance_mean_fifth_prompt'] = most_likely_model_output_loss_importance_mean_fifth_prompt
+        result_dict['most_likely_neg_log_likelihoods_importance_max_fifth_prompt'] = most_likely_model_output_loss_importance_max_fifth_prompt
+        result_dict['most_likely_neg_log_likelihoods_importance_min_fifth_prompt'] = most_likely_model_output_loss_importance_min_fifth_prompt
         
         result.append(result_dict)
     

@@ -25,10 +25,11 @@ def get_uncertainty_mars(args):
     # === Define/Read In/Out files ========================
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
+    base_dir = f'{args.output_dir}/{args.dataset}/archive_500samples/{args.run_id}'
     # inputs
-    likelihoods_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
+    likelihoods_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
     # outputs
-    uncertainty_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
+    uncertainty_output_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
 
     with open(likelihoods_file, 'rb') as infile:
         likelihoods = pickle.load(infile)
@@ -115,6 +116,15 @@ def get_uncertainty_mars(args):
             'most_likely_neg_log_likelihoods_importance_mean_forth_prompt',
             'most_likely_neg_log_likelihoods_importance_max_forth_prompt',
             'most_likely_neg_log_likelihoods_importance_min_forth_prompt',
+            
+            'average_neg_log_likelihoods_fifth_prompt',
+            'average_neg_log_likelihoods_importance_mean_fifth_prompt',
+            'average_neg_log_likelihoods_importance_max_fifth_prompt',
+            'average_neg_log_likelihoods_importance_min_fifth_prompt',
+            'most_likely_neg_log_likelihoods_fifth_prompt', 
+            'most_likely_neg_log_likelihoods_importance_mean_fifth_prompt',
+            'most_likely_neg_log_likelihoods_importance_max_fifth_prompt',
+            'most_likely_neg_log_likelihoods_importance_min_fifth_prompt',
             
             'similarity_score',
             'semantic_set_ids',
@@ -251,6 +261,30 @@ def get_uncertainty_mars(args):
         overall_results['semantic_set_ids']
     )
     
+    # === Fifth prompt ======== 
+    # PE & SE
+    average_predictive_entropy_fifth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_fifth_prompt'])
+    predictive_entropy_over_concepts_fifth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_fifth_prompt'],
+        overall_results['semantic_set_ids']
+    )
+    # With MARS
+    average_predictive_entropy_importance_mean_fifth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_mean_fifth_prompt'])
+    average_predictive_entropy_importance_max_fifth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_max_fifth_prompt'])
+    average_predictive_entropy_importance_min_fifth_prompt = get_predictive_entropy(-overall_results['average_neg_log_likelihoods_importance_min_fifth_prompt'])
+    predictive_entropy_over_concepts_importance_mean_fifth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_mean_fifth_prompt'],
+        overall_results['semantic_set_ids']
+    )    
+    predictive_entropy_over_concepts_importance_max_fifth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_max_fifth_prompt'],
+        overall_results['semantic_set_ids']
+    )    
+    predictive_entropy_over_concepts_importance_min_fifth_prompt = get_predictive_entropy_over_concepts(
+        -overall_results['average_neg_log_likelihoods_importance_min_fifth_prompt'],
+        overall_results['semantic_set_ids']
+    )
+    
     
     # === Write in variables ==================
     # = Main prompt ===
@@ -293,6 +327,15 @@ def get_uncertainty_mars(args):
     overall_results['predictive_entropy_over_concepts_importance_max_forth_prompt'] = predictive_entropy_over_concepts_importance_max_forth_prompt
     overall_results['predictive_entropy_over_concepts_importance_min_forth_prompt'] = predictive_entropy_over_concepts_importance_min_forth_prompt
     
+    # = Fifth prompt ===
+    overall_results['average_predictive_entropy_fifth_prompt'] = average_predictive_entropy_fifth_prompt
+    overall_results['predictive_entropy_over_concepts_fifth_prompt'] = predictive_entropy_over_concepts_fifth_prompt
+    overall_results['average_predictive_entropy_importance_mean_fifth_prompt'] = average_predictive_entropy_importance_mean_fifth_prompt
+    overall_results['average_predictive_entropy_importance_max_fifth_prompt'] = average_predictive_entropy_importance_max_fifth_prompt
+    overall_results['average_predictive_entropy_importance_min_fifth_prompt'] = average_predictive_entropy_importance_min_fifth_prompt
+    overall_results['predictive_entropy_over_concepts_importance_mean_fifth_prompt'] = predictive_entropy_over_concepts_importance_mean_fifth_prompt
+    overall_results['predictive_entropy_over_concepts_importance_max_fifth_prompt'] = predictive_entropy_over_concepts_importance_max_fifth_prompt
+    overall_results['predictive_entropy_over_concepts_importance_min_fifth_prompt'] = predictive_entropy_over_concepts_importance_min_fifth_prompt
     
     ### === Save the uncertainty result ============
     with open(uncertainty_output_file, 'wb') as ofile:

@@ -90,7 +90,7 @@ if __name__ == "__main__":
     # elif args.generation_type == 'cad':
     #     generation_cad(args)
     
-    ## === Phase 2: Uncertainty computation
+    # ## === Phase 2: Uncertainty computation
     # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
     # get_groundedness(args)
     get_probability(args)
