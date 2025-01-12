@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
-#SBATCH --time=7:00:00
+#SBATCH --time=6:00:00
 #SBATCH --output=script_logging/slurm_%A.out
 
 module load 2022
@@ -42,7 +42,7 @@ module load Python/3.10.4-GCCcore-11.3.0
 model="meta-llama/Llama-2-7b-chat-hf"
 dataset="trivia"
 subsec="dev"
-main_prompt_format="rerank_retriever_top1"
+main_prompt_format="q_positive"
 second_prompt_format="only_q"
 fraction_of_data_to_use=0.340    # nqgold 0.173 | trivia 0.057,  | popqa 0.035
 run_id="run_0"
