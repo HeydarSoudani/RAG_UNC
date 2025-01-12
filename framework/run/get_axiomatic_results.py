@@ -22,6 +22,8 @@ from transformers import pipeline
 from utils.utils import set_seed, uncertainty_to_confidence_min_max
 from metrics.calibration import ECE_estimate
 
+UNC_THERESHOLD = 1000
+
 def get_axiomatic_results(args):
     print("\n--- Step 6: Get Axiomatic Results ...")
     print(f"""
@@ -35,25 +37,16 @@ def get_axiomatic_results(args):
     
     # === Define output files ===================
     # archive_500samples
-    probability_normal_or_cad = 'second'
     model = args.model.split('/')[-1]
     base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     
-    answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/axiomatic_results_{probability_normal_or_cad}/{model}_{args.temperature}_answers_equality_output__sec_{args.second_prompt_format}.jsonl'
-    axioms12_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/axiomatic_results_{probability_normal_or_cad}/{model}_{args.temperature}_axioms12_output__sec_{args.second_prompt_format}.json'
-    axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/axiomatic_results_{probability_normal_or_cad}/{model}_{args.temperature}_axiom4_output__sec_{args.second_prompt_format}.json'
-    axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}/{generation_type}/axiomatic_results_{probability_normal_or_cad}/{model}_{args.temperature}_axiom5_output__sec_{args.second_prompt_format}.json'
-    
-    answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
-    os.makedirs(answers_equality_output_dir, exist_ok=True)
-    
-    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
     
     base_dir_second_output = f'{args.output_dir}/{args.dataset}/run_0/'
-    sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation_normal.pkl'
+    sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
     with open(sequence_input_secondry, 'rb') as infile:
         sequences_secondry = pickle.load(infile)
         
@@ -88,19 +81,46 @@ def get_axiomatic_results(args):
 
     
     # === Functions =============================
-    def create_result_df(prompt_format):
+    keys_mapping = {
+        'main_prompt': {
+            'PE': 'average_predictive_entropy_main_prompt',
+            'SE': 'predictive_entropy_over_concepts_main_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_main_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_main_prompt'
+        },
+        'second_prompt': {
+            'PE': 'average_predictive_entropy_second_prompt',
+            'SE': 'predictive_entropy_over_concepts_second_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_second_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_second_prompt'
+        },
+        'third_prompt': {
+            'PE': 'average_predictive_entropy_third_prompt',
+            'SE': 'predictive_entropy_over_concepts_third_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
+        },
+        'forth_prompt': {
+            'PE': 'average_predictive_entropy_forth_prompt',
+            'SE': 'predictive_entropy_over_concepts_forth_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
+        },
+        'fifth_prompt': {
+            'PE': 'average_predictive_entropy_forth_prompt',
+            'SE': 'predictive_entropy_over_concepts_forth_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
+        }
+         
+    }
+    
+    def create_result_df(main_prompt_format, second_prompt_format):
         
-        if prompt_format == 'only_q':
-            generation_file = f'{base_dir_second_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation_normal.pkl'
-            similarities_input_file = f'{base_dir_second_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-            likelihoods_input_file = f'{base_dir_second_output}/{prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
-            correctness_input_file = f'{base_dir_second_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
-        else:
-            generation_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
-            similarities_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-            likelihoods_input_file = f'{base_dir_output}/{prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
-            correctness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_correctness.pkl'
-        # groundedness_input_file = f'{base_dir_output}/{prompt_format}/{model}_{args.temperature}_groundedness_generation__sec_{args.second_prompt_format}.pkl'
+        generation_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_similarities_generation.pkl'
+        likelihoods_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
+        correctness_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_correctness.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -110,8 +130,7 @@ def get_axiomatic_results(args):
             likelihoods_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
-        # with open(groundedness_input_file, 'rb') as f:
-        #     groundedness_results  = pickle.load(f)
+        
         
         # === Read data ============================
         # 
@@ -143,7 +162,8 @@ def get_axiomatic_results(args):
             'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
             'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
-            
+            'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
+            'average_predictive_entropy_importance_max_fifth_prompt', 'predictive_entropy_over_concepts_importance_max_fifth_prompt',
         )
         likelihoods = likelihoods_results
         likelihoods_small = dict((k, likelihoods[k]) for k in keys_to_use)
@@ -332,7 +352,6 @@ def get_axiomatic_results(args):
 
         return semantically_similar_list, semantically_not_similar_list
 
-
     def in_doc_existence(sequences, ids):
         samples = [item for item in sequences if item['id'] in ids]
         
@@ -494,193 +513,292 @@ def get_axiomatic_results(args):
         
         return relation_queries
 
-    # ======
-    uncertainty_methods = ['PE', 'SE'] # , 'PE_MARS', 'SE_MARS' 
-    keys_mapping = {
-        'main_prompt': {
-            'PE': 'average_predictive_entropy_main_prompt',
-            'SE': 'predictive_entropy_over_concepts_main_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_main_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_main_prompt'
-        },
-        'second_prompt': {
-            'PE': 'average_predictive_entropy_second_prompt',
-            'SE': 'predictive_entropy_over_concepts_second_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_second_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_second_prompt'
-        },
-        'third_prompt': {
-            'PE': 'average_predictive_entropy_third_prompt',
-            'SE': 'predictive_entropy_over_concepts_third_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
-        },
-        'forth_prompt': {
-            'PE': 'average_predictive_entropy_forth_prompt',
-            'SE': 'predictive_entropy_over_concepts_forth_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
-        },
-        'fifth_prompt': {
-            'PE': 'average_predictive_entropy_forth_prompt',
-            'SE': 'predictive_entropy_over_concepts_forth_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
-        }
-         
-    }
-    
-    result_df_main_prompt = create_result_df(args.main_prompt_format)
-    # result_df_main_filtered_pe = result_df_main[result_df_main[f'average_predictive_entropy_{probability_normal_or_cad}_prompt'] <= 100]
-    # result_df_main_filtered_se = result_df_main[result_df_main[f'predictive_entropy_over_concepts_{probability_normal_or_cad}_prompt'] <= 100]
-    # result_df_main_filtered_pe = result_df_main_prompt
-    # result_df_main_filtered_se = result_df_main_prompt
-    
-    result_df_second_prompt = create_result_df(args.second_prompt_format)
-    # result_df_second_prompt_filtered_pe = result_df_second_prompt[result_df_main['average_predictive_entropy_main_prompt'] <= 100]
-    # result_df_second_prompt_filtered_se = result_df_second_prompt[result_df_main['predictive_entropy_over_concepts_main_prompt'] <= 100]
-    # result_df_second_prompt_filtered_pe = result_df_second_prompt[result_df_second_prompt['average_predictive_entropy_main_prompt'] <= 1000]
-    # result_df_second_prompt_filtered_se = result_df_second_prompt[result_df_second_prompt['predictive_entropy_over_concepts_main_prompt'] <= 1000]
-    # result_df_second_prompt_filtered_pe = result_df_second_prompt
-    # result_df_second_prompt_filtered_se = result_df_second_prompt
-    
-    # First check: answer1 is equal to answer2
-    if os.path.isfile(answers_equality_output_jsonl_file):
-        print(f"{answers_equality_output_jsonl_file} exists.")
-        # threshold = 0.5
-        # agree_list, non_agree_list = [], []
-        # with open(similarity_output_jsonl_file, 'r') as file:
-        #     ids = []
-        #     for line in file:
-        #         sample = json.loads(line.strip())
-        #         ids.append(sample['id'])
-        #         if sample['sim_score'] > threshold:
-        #             agree_list.append(sample['id'])
-        #         else:
-        #             non_agree_list.append(sample['id'])
-        agree_list, non_agree_list = [], []
-        with open(answers_equality_output_jsonl_file, 'r') as file:
-            for line in file:
-                if line.strip():
-                    item = json.loads(line)
-                    if item['is_equal']:
-                        agree_list.append(item['id'])
-                    else:
-                        non_agree_list.append(item['id'])
+    def run_axiomatic_metrics(prompt_order):
         
-    else:
-        print("Computing similarity ...")
-        # similarity_model_name = "cross-encoder/stsb-roberta-large"
-        # similarity_model = CrossEncoder(model_name=similarity_model_name, num_labels=1)
-        # similarity_model.model.to(args.device)
-        # agree_list, non_agree_list = compute_answer_equality_nli(sequences_main, sequences_secondry)
-        agree_list, non_agree_list = compute_answer_equality_em(sequences_main, sequences_secondry)
-        # agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
+        # Check if answer1 is equal to answer2
+        if os.path.isfile(answers_equality_output_jsonl_file):
+            print(f"{answers_equality_output_jsonl_file} exists.")
+            agree_list, non_agree_list = [], []
+            with open(answers_equality_output_jsonl_file, 'r') as file:
+                for line in file:
+                    if line.strip():
+                        item = json.loads(line)
+                        if item['is_equal']:
+                            agree_list.append(item['id'])
+                        else:
+                            non_agree_list.append(item['id'])
+        else:
+            print("Computing similarity ...")
+            # similarity_model_name = "cross-encoder/stsb-roberta-large"
+            # similarity_model = CrossEncoder(model_name=similarity_model_name, num_labels=1)
+            # similarity_model.model.to(args.device)
+            # agree_list, non_agree_list = compute_answer_equality_nli(sequences_main, sequences_secondry)
+            agree_list, non_agree_list = compute_answer_equality_em(sequences_main, sequences_secondry)
+            # agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
     
-    # === Main Computation ========================
-    print("================= Axioms: 1, 2 ==========")
-    axioms_num = '12'
-    axioms_12 = get_entail_contradict_relations_nli(axioms_num, agree_list)
-    print(f"Entailment:        {len(axioms_12['entailment'])} ({(len(axioms_12['entailment']) / len(sequences_main))*100:.2f}%)")
-    print(f"Contradiction:     {len(axioms_12['contradiction'])} ({len(axioms_12['contradiction']) / len(sequences_main)*100:.2f}%)")
-    print(f"All equal samples: {len(agree_list)} ({(len(agree_list) / len(sequences_main))*100:.2f}%)")
-    # print(f"Neutral:       {len(axioms_12['neutral'])} ({len(axioms_12['neutral']) / len(sequences_main)*100:.2f}%)")
-    print('\n')
-    
-    for uncertainty_model in uncertainty_methods: 
+        axioms_num = '12'
+        axioms_12 = get_entail_contradict_relations_nli(axioms_num, agree_list)
+        print(f"Entailment:        {len(axioms_12['entailment'])} ({(len(axioms_12['entailment']) / len(sequences_main))*100:.2f}%)")
+        print(f"Contradiction:     {len(axioms_12['contradiction'])} ({len(axioms_12['contradiction']) / len(sequences_main)*100:.2f}%)")
+        print(f"All equal samples: {len(agree_list)} ({(len(agree_list) / len(sequences_main))*100:.2f}%)")
+        print('\n')
         
-        # if uncertainty_model in ['PE', 'PE_MARS']:
-        #     result_df_main_prompt = result_df_main_filtered_pe
-        #     result_df_second_prompt = result_df_second_prompt_filtered_pe
-        # elif uncertainty_model in ['SE', 'SE_MARS']:
-        #     result_df_main_prompt = result_df_main_filtered_se
-        #     result_df_second_prompt = result_df_second_prompt_filtered_se
+        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 
+            unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
+            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
         
-        unc_model_key_main_prompt = keys_mapping[f'{probability_normal_or_cad}_prompt'][uncertainty_model]
-        unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
-    
-        # # === Axiom 1,2
-        if args.main_prompt_format in [
-            'bm25_retriever_top1', 'bm25_retriever_top5',
-            'rerank_retriever_top1', 'rerank_retriever_top5'
-        ]:
-            for relation_key in ['entailment', 'contradiction']: #  'neutral'
-                selected_list = axioms_12[relation_key]
+            
+            # # === Axiom 1,2
+            if args.main_prompt_format in [
+                'bm25_retriever_top1', 'bm25_retriever_top5',
+                'rerank_retriever_top1', 'rerank_retriever_top5'
+            ]:
+                for relation_key in ['entailment', 'contradiction']: #  'neutral'
+                    selected_list = axioms_12[relation_key]
+                    
+                    if len(selected_list) > 0:
+                        selected_list_ = [tup[0] for tup in selected_list]
+                        agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                        agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+
+                        # Get Correctness
+                        _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(agree_main_prompt_df)
+                        _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(agree_second_prompt_df)
+                        correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+                        correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+                    
+                        # Get Uncertainty
+                        uncertainty_values_main_prompt =  agree_main_prompt_df[unc_model_key_main_prompt]
+                        uncertainty_values_second_prompt = agree_second_prompt_df[unc_model_key_second_prompt]
+                        uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+                        uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+            
+                        # Get Confidence
+                        uncertainty_values_all_main_prompt = result_df_main_prompt[unc_model_key_main_prompt]
+                        uncertainty_values_all_second_prompt = result_df_second_prompt[unc_model_key_second_prompt]
+                        uncertainty_values_all_main_prompt_filtered = np.array(uncertainty_values_all_main_prompt[uncertainty_values_all_main_prompt<UNC_THERESHOLD])
+                        uncertainty_values_all_second_prompt_filtered = np.array(uncertainty_values_all_second_prompt[uncertainty_values_all_second_prompt<UNC_THERESHOLD])
+                        min_all_main, max_all_main = np.min(uncertainty_values_all_main_prompt_filtered), np.max(uncertainty_values_all_main_prompt_filtered)
+                        min_all_second, max_all_second = np.min(uncertainty_values_all_second_prompt_filtered), np.max(uncertainty_values_all_second_prompt_filtered)
+                        confidence_values_main_prompt = uncertainty_to_confidence_min_max(uncertainty_values_main_prompt_filtered, min_val=min_all_main, max_val=max_all_main)
+                        confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt_filtered, min_val=min_all_second, max_val=max_all_second)
+            
+                        # Get AUROC
+                        if len(set(correctness_main_prompt_bin)) == 1:
+                            print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
+                            auroc_main_prompt = 0.5
+                            auroc_second_prompt = 0.5
+                        else:
+                            auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_values_main_prompt)
+                            auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_values_second_prompt)
+                        
+                        # Get Spearman
+                        spearman_main_prompt_corr, spearman_main_prompt_p_value = spearmanr(1-correctness_main_prompt_bin, uncertainty_values_main_prompt)
+                        spearman_second_prompt_corr, spearman_second_prompt_p_value = spearmanr(1-correctness_second_prompt_bin, uncertainty_values_second_prompt)
+                        
+                        
+                        # Print results
+                        print(f"{uncertainty_model}, Axiom12: {relation_key}")
+                        print(f"Acc.:  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
+                        print(f"Unc.:  {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                        print(f"Conf.: {confidence_values_second_prompt.mean():.3f} -> {confidence_values_main_prompt.mean():.3f}")
+                        print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
+                        print(f"Spearman:    {round(spearman_second_prompt_corr, 3)}±{round(spearman_second_prompt_p_value, 3)} -> {round(spearman_main_prompt_corr, 3)}±{round(spearman_main_prompt_p_value, 3)}")
+                        print('\n')             
+                        
+                    else: 
+                        print(f"{relation_key} does not contain data!!!")
+                        print('\n')
+
+            # === Axiom 1,2,3
+            if args.main_prompt_format in ['q_positive', 'q_negative', 'q_conflict']:
+                selected_list = agree_list
+                if args.main_prompt_format in ['q_positive', 'q_negative']:
+                    agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list)]
+                    agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list)]
+                elif args.main_prompt_format == 'q_conflict':
+                    # selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt["exact_match"] == True]
+                    agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list)]
+                    agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list)]
+                    # agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(agree_main_prompt_df['id'].tolist())]
+                # elif args.main_prompt_format == 'q_conflict':
                 
                 if len(selected_list) > 0:
-                    selected_list_ = [tup[0] for tup in selected_list]
-                    agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                    agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
-            
+                    # selected_list_ = [tup[0] for tup in selected_list]
+                    
+
+                    # Get correctness
                     _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(agree_main_prompt_df)
                     _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(agree_second_prompt_df)
                     correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
                     correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-                
-                    uncertainty_main_prompt_values =  agree_main_prompt_df[unc_model_key_main_prompt]
-                    uncertainty_second_prompt_values = agree_second_prompt_df[unc_model_key_second_prompt]
-        
+
+                    # Get uncertainty
+                    uncertainty_values_main_prompt =  agree_main_prompt_df[unc_model_key_main_prompt]
+                    uncertainty_values_second_prompt = agree_second_prompt_df[unc_model_key_second_prompt]
+                    uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+                    uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+                    
+                    # Get Confidence
+                    uncertainty_values_all_main_prompt = result_df_main_prompt[unc_model_key_main_prompt]
+                    uncertainty_values_all_second_prompt = result_df_second_prompt[unc_model_key_second_prompt]
+                    uncertainty_values_all_main_prompt_filtered = np.array(uncertainty_values_all_main_prompt[uncertainty_values_all_main_prompt<UNC_THERESHOLD])
+                    uncertainty_values_all_second_prompt_filtered = np.array(uncertainty_values_all_second_prompt[uncertainty_values_all_second_prompt<UNC_THERESHOLD])
+                    min_all_main, max_all_main = np.min(uncertainty_values_all_main_prompt_filtered), np.max(uncertainty_values_all_main_prompt_filtered)
+                    min_all_second, max_all_second = np.min(uncertainty_values_all_second_prompt_filtered), np.max(uncertainty_values_all_second_prompt_filtered)
+                    confidence_values_main_prompt = uncertainty_to_confidence_min_max(uncertainty_values_main_prompt_filtered, min_val=min_all_main, max_val=max_all_main)
+                    confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt_filtered, min_val=min_all_second, max_val=max_all_second)
+                    
                     if len(set(correctness_main_prompt_bin)) == 1:
                         print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
                         auroc_main_prompt = 0.5
                         auroc_second_prompt = 0.5
                     else:
-                        auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-                        auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
+                        auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_values_main_prompt)
+                        auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_values_second_prompt)
                     
-                    spearman_main_prompt_corr, spearman_main_prompt_p_value = spearmanr(1-correctness_main_prompt_bin, uncertainty_main_prompt_values)
-                    spearman_second_prompt_corr, spearman_second_prompt_p_value = spearmanr(1-correctness_second_prompt_bin, uncertainty_second_prompt_values)
+                    if args.main_prompt_format == 'q_positive':
+                        print(f"{uncertainty_model}, Axiom1: Relevant")
+                    elif args.main_prompt_format == 'q_conflict':
+                        print(f"{uncertainty_model}, Axiom2: Conflict")
+                    elif args.main_prompt_format == 'q_negative':
+                        print(f"{uncertainty_model}, Axiom3: Irrelevant")
                     
-                    print(f"{uncertainty_model}, Axiom12: {relation_key}")
-                    print(f"Uncertainty: {uncertainty_second_prompt_values[uncertainty_second_prompt_values <1000].mean():.3f} -> {uncertainty_main_prompt_values[uncertainty_main_prompt_values < 1000].mean():.3f}")
+                    
                     print(f"Acc. ({args.accuracy_metric}):  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-                    print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-                    print(f"Spearman:    {round(spearman_second_prompt_corr, 3)}±{round(spearman_second_prompt_p_value, 3)} -> {round(spearman_main_prompt_corr, 3)}±{round(spearman_main_prompt_p_value, 3)}")
+                    print(f"Unc.:  {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                    print(f"Conf.: {confidence_values_second_prompt.mean():.3f} -> {confidence_values_main_prompt.mean():.3f}")
+                    print(f"AUROC: {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
                     print('\n')             
                     
                 else: 
-                    print(f"{relation_key} does not contain data!!!")
+                    print(f"This list does not contain data!!!")
                     print('\n')
-
-        # === Axiom 3 -> for negetive docs
-        if args.main_prompt_format in ['q_positive', 'q_negative']:
-            selected_list = agree_list
-            if len(selected_list) > 0:
-                # selected_list_ = [tup[0] for tup in selected_list]
-                agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list)]
-                agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list)]
-
-                _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(agree_main_prompt_df)
-                _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(agree_second_prompt_df)
-                correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-                correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
             
-                uncertainty_main_prompt_values =  agree_main_prompt_df[unc_model_key_main_prompt]
-                uncertainty_second_prompt_values = agree_second_prompt_df[unc_model_key_main_prompt]
-                
-                if len(set(correctness_main_prompt_bin)) == 1:
-                    print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
-                    auroc_main_prompt = 0.5
-                    auroc_second_prompt = 0.5
-                else:
-                    auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_main_prompt_values)
-                    auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_second_prompt_values)
-                
-                if args.main_prompt_format == 'q_negative':
-                    print(f"{uncertainty_model}, Axiom3: irrelevant")
-                elif args.main_prompt_format == 'q_positive':
-                    print(f"{uncertainty_model}, Axiom1: entailment")
-                print(f"Uncertainty: {uncertainty_second_prompt_values[uncertainty_second_prompt_values<1000].mean():.3f} -> {uncertainty_main_prompt_values[uncertainty_main_prompt_values<1000].mean():.3f}")
-                print(f"Acc. ({args.accuracy_metric}):  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-                print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-                print('\n')             
-                
-            else: 
-                print(f"This list does not contain data!!!")
-                print('\n')
         
+    # ======
+    result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
+    result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
         
-    # print("================= Axiom: 4 =================")
+    for prompt_order in ['main', 'second']: # ,  'third', 'forth'
+        print(f"=== {prompt_order} ====================================")
+        axioms12_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axioms12_output.json'
+        axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom4_output.json'
+        axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom5_output.json'
+        answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_answers_equality_output.jsonl'
+        answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
+        os.makedirs(answers_equality_output_dir, exist_ok=True)
+        
+        run_axiomatic_metrics(prompt_order)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
+    parser.add_argument('--dataset', type=str, default='nqswap', choices=[
+        'nqgold', 'nqswap', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq',
+        '2wikimultihopqa', 'hotpotqa', 'musique',
+        'topicoqa',
+    ])
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_negative',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
+    ])
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
+    ])
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
+        'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
+    ])
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
+    parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
+    parser.add_argument("--output_file_postfix", type=str, default="")
+    
+    parser.add_argument('--num_generations_per_prompt', type=int, default=10)
+    parser.add_argument('--max_new_tokens', type=int, default=128)
+    parser.add_argument('--type_of_question', type=str)
+    parser.add_argument('--decoding_method', type=str, default='beam_search')
+    parser.add_argument('--temperature', type=float, default='1.0')
+    parser.add_argument('--num_beams', type=int, default='1')
+    parser.add_argument('--top_p', type=float, default=1.0)
+    
+    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
+    parser.add_argument('--affinity_mode', type=str, default='disagreement')
+    parser.add_argument('--run_id', type=str, default='run_0')
+    parser.add_argument('--device', type=int, default=0)
+    parser.add_argument("--seed", type=int, default=10)
+    args = parser.parse_args()
+    
+    args.output_dir = "framework/run_output"
+    args.device = torch.device("cuda:" + str(args.device) if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        print(f"Number of available GPUs: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+    else:
+        print("CUDA is not available. No GPUs detected.")
+    
+    if args.main_prompt_format != 'only_q':
+        args.second_prompt_format == 'only_q'
+    
+    set_seed(args.seed)
+    get_axiomatic_results(args)
+    
+    # python framework/run/get_axiomatic_results.py
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+        # print("================= Axiom: 4 =================")
     # axiom_num = '4'
     # axiom_4 = get_entail_contradict_relations_nli(axiom_num, non_agree_list)
     # print(f"Entailment:    {len(axiom_4['entailment'])} ({(len(axiom_4['entailment']) / len(sequences_main))*100:.2f}%)")
@@ -841,109 +959,6 @@ def get_axiomatic_results(args):
     # else: 
     #     print(f"{relation_key} does not contain data!!!")
     #     print('\n')
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'trivia', 'popqa',
-        'webquestions', 'squad1', 'nq',
-        '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa',
-    ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
-        'only_q', 'q_positive', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
-    ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
-    ])
-    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
-        'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
-    ])
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
-    parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
-    parser.add_argument("--output_file_postfix", type=str, default="")
-    
-    parser.add_argument('--num_generations_per_prompt', type=int, default=10)
-    parser.add_argument('--max_new_tokens', type=int, default=128)
-    parser.add_argument('--type_of_question', type=str)
-    parser.add_argument('--decoding_method', type=str, default='beam_search')
-    parser.add_argument('--temperature', type=float, default='1.0')
-    parser.add_argument('--num_beams', type=int, default='1')
-    parser.add_argument('--top_p', type=float, default=1.0)
-    
-    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
-    parser.add_argument('--alpha_generation', type=float, default=0.5)
-    parser.add_argument('--alpha_probability', type=float, default=0.5)
-    parser.add_argument('--affinity_mode', type=str, default='disagreement')
-    parser.add_argument('--run_id', type=str, default='run_0')
-    parser.add_argument('--device', type=int, default=0)
-    parser.add_argument("--seed", type=int, default=10)
-    args = parser.parse_args()
-    
-    args.output_dir = "framework/run_output"
-    args.device = torch.device("cuda:" + str(args.device) if torch.cuda.is_available() else "cpu")
-    if torch.cuda.is_available():
-        print(f"Number of available GPUs: {torch.cuda.device_count()}")
-        for i in range(torch.cuda.device_count()):
-            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
-    else:
-        print("CUDA is not available. No GPUs detected.")
-    
-    if args.main_prompt_format != 'only_q':
-        args.second_prompt_format == 'only_q'
-    
-    set_seed(args.seed)
-    get_axiomatic_results(args)
-    
-    # python framework/run/get_axiomatic_results.py
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     

@@ -46,6 +46,17 @@ def convert_jsonl_to_dataset_static_psg(dataset, split):
                     "positive_ctxs": item["positive_ctxs"],
                     "negative_ctxs": item["negative_ctxs"]
                 })
+            elif dataset in ['nqswap']:
+                data.append({
+                    "question_id": item["id"],
+                    "question": item["question"],
+                    "answers": item["answers"],
+                    "positive_ctxs": item["positive_ctxs"],
+                    "negative_ctxs": item["negative_ctxs"],
+                    "hard_negative_ctxs": item["hard_negative_ctxs"],
+                    "modified_ctxs": item["modified_ctxs"]
+                })
+                
 
     dataset_obj = Dataset.from_list(data)
     return dataset_obj
@@ -102,7 +113,7 @@ class RAGDataset:
         self.prompt_format = prompt_format
         self.tokenizer = tokenizer
         
-        if self.prompt_format in ['only_q', 'q_positive', 'q_negative']:
+        if self.prompt_format in ['only_q', 'q_positive', 'q_negative', 'q_conflict']:
             self.dataset = convert_jsonl_to_dataset_static_psg(self.dataset_name, split)
         else:
             retriever_name = self.prompt_format.split('_')[0]
@@ -188,11 +199,22 @@ class RAGDataset:
                         
                     return prompt_text, sim_score
                     
-                    
                 else:
                     similarity_score = 1.0
                     prompt_text = self.generate_prompt_wo_ctx(example['question'])
                     return prompt_text, similarity_score
+    
+        elif self.prompt_format == 'q_conflict':
+            if len(example['modified_ctxs']) > 0:
+                selected_context = random.choice(example['modified_ctxs'])
+                prompt_text = self.generate_prompt_with_ctx(example['question'], selected_context['text'])
+                sim_score = 1.0
+                return prompt_text, sim_score
+            else:
+                similarity_score = 1.0
+                prompt_text = self.generate_prompt_wo_ctx(example['question'])
+                return prompt_text, similarity_score
+    
     
         else: # retrived dataset
             # selected_context = random.choice(example['ctxs'])

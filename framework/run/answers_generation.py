@@ -34,8 +34,9 @@ def generation(args):
     
     # === Define output files ===================
     model = args.model.split('/')[-1]
-    sequences_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_generation_{args.generation_type}.pkl'
-    cleaned_sequences_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    sequences_output_file = f'{base_dir}/{model}_generation_{args.generation_type}.pkl'
+    cleaned_sequences_output_file = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
     os.makedirs(os.path.dirname(sequences_output_file), exist_ok=True)
     
     
@@ -244,26 +245,29 @@ def generation(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'trivia', 'popqa',
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+        'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
     
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.34)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     

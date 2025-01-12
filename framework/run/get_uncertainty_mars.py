@@ -25,11 +25,11 @@ def get_uncertainty_mars(args):
     # === Define/Read In/Out files ========================
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/archive_500samples/{args.run_id}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
-    likelihoods_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
+    likelihoods_file = f'{base_dir}/{generation_type}/{model}_likelihoods_generation.pkl'
     # outputs
-    uncertainty_output_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_uncertainty_mars_generation.pkl'
+    uncertainty_output_file = f'{base_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
 
     with open(likelihoods_file, 'rb') as infile:
         likelihoods = pickle.load(infile)
@@ -163,7 +163,6 @@ def get_uncertainty_mars(args):
     
     ### === Main loop =====================================
     overall_results, geometric_results = get_overall_log_likelihoods(likelihoods)
-
 
     # === Main prompt ======== 
     # PE & SE

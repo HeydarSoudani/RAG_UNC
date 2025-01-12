@@ -35,16 +35,19 @@ def get_probability(args):
     # === Files ======================================
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/archive_500samples/{args.run_id}'
-    # inputs
-    sequence_input_main = f'{base_dir}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
-    sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
-    # outputs
-    probabilities_output_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.pkl'
-    probabilities_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.jsonl' 
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     
-    probabilities_output_dir = os.path.dirname(probabilities_output_file)
-    os.makedirs(probabilities_output_dir, exist_ok=True)
+    base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__{args.main_prompt_format}'
+    if not os.path.isdir(base_dir_2ed):
+        base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__q_positive'
+    
+    # inputs
+    sequence_input_main = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_secondry = f'{base_dir_2ed}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    # outputs
+    probabilities_output_file = f'{base_dir}/{generation_type}/{model}_probabilities_generation.pkl'
+    probabilities_output_jsonl_file = f'{base_dir}/{generation_type}/{model}_probabilities_generation.jsonl' 
+    os.makedirs(f'{base_dir}/{generation_type}', exist_ok=True)
     
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
@@ -126,10 +129,17 @@ def get_probability(args):
         second_part = entail_score if relation=='entailment' else (1-contradict_score)
         alpha_axiom = (0.5*first_part) + (0.5*second_part)
         
+        # first_part = 1.0 if is_equal else -1.0
+        # alpha_axiom = first_part * entail_score
+        
         return alpha_axiom
     
     def get_cad_alpha_v2(context, query, with_context_answer, wo_context_answer, args):
         alpha_axiom = ALPHA_OTHERS
+        
+        K1 = 0.33
+        K2 = 0.33
+        K3 = 0.33
         
         # Step1: Compute answer equality (EM)
         is_equal = compute_answer_equality_em(with_context_answer, wo_context_answer)
@@ -144,15 +154,17 @@ def get_probability(args):
             retriever_coef = 0.9
         elif args.main_prompt_format == 'q_negative':
             retriever_coef = 0.2
+        elif args.main_prompt_format == 'q_conflict':
+            retriever_coef = 0.0
         else:
             retriever_coef = 0.5
         
-        alpha_axiom = (0.5*retriever_coef) + (0.5*entail_score)
+        equality_indicator = 1.0 if is_equal else 0.0
+        # alpha_axiom = 1.0 if is_equal else -1.0
+        alpha_axiom = (K1*equality_indicator) + (K2*retriever_coef) + (K3*entail_score)
         
         return alpha_axiom
         
-        
-    
     def get_probability(prompt, generation):
         prompt = prompt[prompt != tokenizer.pad_token_id]
         len_prompt = len(prompt)
@@ -192,7 +204,7 @@ def get_probability(args):
     def get_probability_cad_combination(prompt, prompt_secondry, generation, alpha=0.5):
         _generation = generation[generation != tokenizer.pad_token_id]
         
-        # For main prompt
+        # For main prompt: with doc
         prompt = prompt[prompt != tokenizer.pad_token_id]
         len_prompt = len(prompt)
         p_generation = torch.cat((prompt, _generation), dim=0)
@@ -202,7 +214,7 @@ def get_probability(args):
         _logits = model_output['logits'][0, len_prompt-1:-1]
         _logits = _logits.float()
         
-        # For sec prompt
+        # For sec prompt: only
         prompt_secondry = prompt_secondry[prompt_secondry != tokenizer.pad_token_id]
         len_prompt_secondry = len(prompt_secondry)
         p_sec_generation = torch.cat((prompt_secondry, _generation), dim=0)
@@ -213,7 +225,8 @@ def get_probability(args):
         _logits_sec = _logits_sec.float()
         
         # Probability
-        logits_cad = alpha * _logits + (1-alpha) * _logits_sec
+        logits_cad = (alpha * _logits) + (1 - alpha) * _logits_sec
+        
         ids = p_generation[len_prompt:]
         probs = torch.nn.functional.softmax(logits_cad, dim=1)
         probs = torch.gather(probs, dim=1, index=ids.view(-1, 1))
@@ -251,8 +264,6 @@ def get_probability(args):
         
         return probs
 
-
-    
     # === Main loop, on sequence =====================
     result_dict = {}
     model.eval()
@@ -278,7 +289,7 @@ def get_probability(args):
                     'answers': answers,
                 }
                 
-                # Claculate alpha based on axioms
+                # = Claculate alpha based on axioms
                 if id_ in _sequences_secondry:
                     prompt_text = sample['prompt_text']
                     context = prompt_text.split('Document:')[-1].split('Question:')[0]
@@ -320,7 +331,7 @@ def get_probability(args):
                     else:
                         probs_cad_axiomatic = torch.tensor([])
                 
-                    # Fifth prompt: CAD differential
+                    # Fifth prompt: CAD, alpha with three sentences
                     if id_ in _sequences_secondry:
                         probs_cad_difference = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, alpha_axiomatic_v2)
                     else:
@@ -427,19 +438,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'trivia', 'popqa',
+        'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
-        'only_q', 'q_positive', 'q_negative',
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative',
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
@@ -463,7 +474,7 @@ if __name__ == "__main__":
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
     parser.add_argument('--alpha_generation', type=float, default=0.5)
-    parser.add_argument('--alpha_probability', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=-1.0)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
