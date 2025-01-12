@@ -29,14 +29,13 @@ def get_likelihoods_mars(args):
     # === Read the generation & similarities data ===
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/archive_500samples/{args.run_id}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
-    sequence_input = f'{base_dir}/{args.main_prompt_format}/{model}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
-    similarities_file = f'{base_dir}/{args.main_prompt_format}/{model}_{args.temperature}_similarities_generation.pkl'
-    # probabilities_file = f'{base_dir}/{args.prompt_format}/{model}_{args.temperature}_probabilities_generation.pkl'
-    probabilities_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_probabilities_generation__sec_{args.second_prompt_format}.pkl'
+    sequence_input = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    similarities_file = f'{base_dir}/{model}_similarities_generation.pkl'
+    probabilities_file = f'{base_dir}/{generation_type}/{model}_probabilities_generation.pkl'
     # outputs
-    likelihoods_output_file = f'{base_dir}/{args.main_prompt_format}/{generation_type}/{model}_{args.temperature}_likelihoods_generation.pkl'
+    likelihoods_output_file = f'{base_dir}/{generation_type}/{model}_likelihoods_generation.pkl'
     
 
     with open(sequence_input, 'rb') as infile:

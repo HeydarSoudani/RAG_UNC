@@ -33,9 +33,10 @@ def get_similarity(args):
     # === Define output files =============
     # === Read the generated data =========
     model_ = args.model.split('/')[-1]
-    similarities_output_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model_}_{args.temperature}_similarities_generation.pkl'
-    # generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.prompt_format}/{model}_{args.temperature}_generation.pkl'
-    generation_file = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}/{model_}_{args.temperature}_cleaned_generation_{args.generation_type}.pkl'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    generation_file = f'{base_dir}/{model_}_cleaned_generation_{args.generation_type}.pkl'
+    similarities_output_file = f'{base_dir}/{model_}_similarities_generation.pkl'
+    
     with open(generation_file, 'rb') as infile:
         sequences = pickle.load(infile)
 

@@ -30,6 +30,7 @@ class ExactMatch():
     def __call__(self, reference_answers, candidate):
         is_correct = False
         for pa in reference_answers:
+            candidate = candidate.strip()
             if pa in candidate or pa.lower() in candidate or pa.capitalize() in candidate:
                 is_correct = True
                 break

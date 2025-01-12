@@ -27,20 +27,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='webquestions', choices=[
-        'nqgold', 'trivia', 'popqa',
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+        'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative',
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative',
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
@@ -85,13 +85,13 @@ if __name__ == "__main__":
     ### === Run Steps ============================
     set_seed(args.seed)
     ## === Phase 1: answer generation & cleaning
-    # if args.generation_type == 'normal':
-    #     generation(args)
-    # elif args.generation_type == 'cad':
-    #     generation_cad(args)
+    if args.generation_type == 'normal':
+        generation(args)
+    elif args.generation_type == 'cad':
+        generation_cad(args)
     
     # ## === Phase 2: Uncertainty computation
-    # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
+    get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
     # get_groundedness(args)
     get_probability(args)
     get_likelihoods_mars(args)
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # # get_uncertainty_sar(args)
     
     ## === Phase 3: correctness and results
-    # get_correctness(args)
+    get_correctness(args)
     get_calibration_results(args)
     # get_axiomatic_results(args)
     
