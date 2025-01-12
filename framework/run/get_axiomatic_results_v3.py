@@ -16,9 +16,8 @@ from tqdm import tqdm
 from scipy.stats import pearsonr, spearmanr
 from sentence_transformers.cross_encoder import CrossEncoder
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from transformers import pipeline
-# from minicheck.minicheck import MiniCheck
 
+from utils.significant_testing import wilcoxon_test
 from utils.utils import set_seed, uncertainty_to_confidence_min_max
 from metrics.calibration import ECE_estimate
 
@@ -37,20 +36,21 @@ def get_axiomatic_results(args):
     """.replace('        ', ''))
     
     # === Define output files ===================
-    # archive_500samples
     model = args.model.split('/')[-1]
-    base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     
-    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    
+    # === For getting equal outputs =============
+    sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    if os.path.isdir(f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}'):
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
+    else:
+        temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{temp}/{model}_cleaned_generation_normal.pkl'
+    
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
-    
-    base_dir_second_output = f'{args.output_dir}/{args.dataset}/run_0/'
-    if os.path.isdir(f'{base_dir_second_output}/{args.second_prompt_format}__{args.main_prompt_format}'):
-        sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
-    else:
-        sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}__q_positive/{model}_cleaned_generation_normal.pkl'
     with open(sequence_input_secondry, 'rb') as infile:
         sequences_secondry = pickle.load(infile)
    
@@ -99,16 +99,15 @@ def get_axiomatic_results(args):
     
     def create_result_df(main_prompt_format, second_prompt_format):
         
-        if main_prompt_format == 'only_q':
-            generation_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{model}_cleaned_generation_{args.generation_type}.pkl'
-            similarities_input_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{model}_similarities_generation.pkl'
-            likelihoods_input_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{generation_type}/{model}_uncertainty_mars_generation.pkl'
-            correctness_input_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{model}_correctness.pkl'
-        else:
-            generation_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
-            similarities_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_similarities_generation.pkl'
-            likelihoods_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
-            correctness_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_correctness.pkl'
+        results_dir = f'{base_dir}/{main_prompt_format}__{second_prompt_format}'
+        if not os.path.isdir(results_dir):
+            temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
+            results_dir = f'{base_dir}/{main_prompt_format}__{temp}'
+        
+        generation_file = f'{results_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{results_dir}/{model}_similarities_generation.pkl'
+        correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
+        likelihoods_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -380,134 +379,157 @@ def get_axiomatic_results(args):
                 json.dump(relation_queries, file, indent=4)
         
         return relation_queries
-
+    
     def run_axiomatic_metrics(prompt_order):
         
-        # Check if answer1 is equal to answer2
-        if os.path.isfile(answers_equality_output_jsonl_file):
-            print(f"{answers_equality_output_jsonl_file} exists.")
-            answer_equal_list, answer_not_equal_list = [], []
-            with open(answers_equality_output_jsonl_file, 'r') as file:
-                for line in file:
-                    if line.strip():
-                        item = json.loads(line)
-                        if item['is_equal']:
-                            answer_equal_list.append(item['id'])
-                        else:
-                            answer_not_equal_list.append(item['id'])
-        else:
-            print("Computing similarity ...")
-            answer_equal_list, answer_not_equal_list = compute_answer_equality_em(sequences_main, sequences_secondry)
-
-        print(f"Answer equal: {len(answer_equal_list)}")
-        print(f"Answer not equal: {len(answer_not_equal_list)}")
-
+        print()
         
-        for axiom_num in ['1', '2', '4', '5']: #  
-            print(f"= Axiom: {axiom_num} =======")
+        ### === Step1: Check if answer1 is equal to answer2 ===
+        def get_output_equality():
+            if os.path.isfile(answers_equality_output_jsonl_file):
+                print(f"{answers_equality_output_jsonl_file} exists.")
+                answer_equal_list, answer_not_equal_list = [], []
+                with open(answers_equality_output_jsonl_file, 'r') as file:
+                    for line in file:
+                        if line.strip():
+                            item = json.loads(line)
+                            if item['is_equal']:
+                                answer_equal_list.append(item['id'])
+                            else:
+                                answer_not_equal_list.append(item['id'])
+            else:
+                print("Computing similarity ...")
+                answer_equal_list, answer_not_equal_list = compute_answer_equality_em(sequences_main, sequences_secondry)
             
-            if axiom_num == '1':
-                selected_list_ = answer_equal_list
-                answer_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                selected_main_prompt_df = answer_equal_main_prompt_df[(answer_equal_main_prompt_df["exact_match"] == True)]
-                print(f'Axiom 1: {len(selected_main_prompt_df)}')
-                selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+            print(f"Answer equal: {len(answer_equal_list)}")
+            print(f"Answer not equal: {len(answer_not_equal_list)}")
+            return answer_equal_list, answer_not_equal_list
+        
+        answer_equal_list, answer_not_equal_list = get_output_equality()
+
+
+        ### === Step2: Compute Axioms =========================
+        for uncertainty_model in ['PE', ]: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+            print(f"Unc. Model: {uncertainty_model}")
+            unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
+            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+        
+            all_axioms_ids = []
+            for axiom_num in ['1', '2', '4', '5']:
+                print(f"== Axiom: {axiom_num} ===")
                 
-            elif axiom_num == '2':
-                selected_list_ = answer_equal_list
-                answer_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                selected_main_prompt_df = answer_equal_main_prompt_df[(answer_equal_main_prompt_df["exact_match"] == False)]
-                print(f'Axiom 2: {len(selected_main_prompt_df)}')
-                selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
-            
-            elif axiom_num == '4':
-                selected_list_ = answer_not_equal_list
-                answer_not_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                selected_main_prompt_df = answer_not_equal_main_prompt_df[(answer_not_equal_main_prompt_df["exact_match"] == True)]
+                # Get samples
+                if axiom_num == '1':
+                    # selected_list_ = answer_equal_list
+                    # answer_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                    # selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+                    correct_main_prompt_df = result_df_main_prompt[(result_df_main_prompt["exact_match"] == True)]
+                    correct_second_prompt_df = result_df_second_prompt[(result_df_second_prompt["exact_match"] == True)]
+                    selected_main_prompt_df = result_df_main_prompt[(result_df_main_prompt["exact_match"] == True) & (result_df_main_prompt['id'].isin(correct_second_prompt_df['id'].tolist()))]
+                    selected_second_prompt_df = result_df_second_prompt[(result_df_second_prompt["exact_match"] == True) & (result_df_second_prompt['id'].isin(correct_main_prompt_df['id'].tolist()))]
+                    print(f'# Samples: {len(selected_main_prompt_df)}')
+                    print(f'# Samples: {len(selected_second_prompt_df)}')
+                    all_axioms_ids.extend(selected_main_prompt_df['id'].tolist())
+                    
+                elif axiom_num == '2':
+                    selected_list_ = answer_equal_list
+                    answer_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                    selected_main_prompt_df = answer_equal_main_prompt_df[(answer_equal_main_prompt_df["exact_match"] == False)]
+                    selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+                    print(f'# Samples: {len(selected_main_prompt_df)}')
+                    print(f'# Samples: {len(selected_second_prompt_df)}')
+                    all_axioms_ids.extend(selected_main_prompt_df['id'].tolist())
                 
-                selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
-                selected_second_prompt_correct_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == True]
-                selected_second_prompt_notcorrect_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == False]
+                elif axiom_num == '4':
+                    selected_list_ = answer_not_equal_list
+                    answer_not_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                    selected_main_prompt_df = answer_not_equal_main_prompt_df[(answer_not_equal_main_prompt_df["exact_match"] == True)]
+                    
+                    selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+                    selected_second_prompt_correct_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == True]
+                    selected_second_prompt_notcorrect_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == False]
+                    selected_main_prompt_notcorrect_df_ = selected_main_prompt_df[selected_main_prompt_df['id'].isin(selected_second_prompt_notcorrect_df['id'].tolist())] 
+                    
+                    print(f'Main:   {len(selected_main_prompt_notcorrect_df_)}')
+                    print(f'2ed nc: {len(selected_second_prompt_notcorrect_df)}')
+                    all_axioms_ids.extend(selected_main_prompt_notcorrect_df_['id'].tolist())
+
+                elif axiom_num == '5':
+                    selected_list_ = answer_not_equal_list
+                    answer_not_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                    selected_main_prompt_df = answer_not_equal_main_prompt_df[(answer_not_equal_main_prompt_df["exact_match"] == False)]
                 
-                print(f'Axiom 4 -> Main {len(selected_main_prompt_df)}')
-                print(f'Axiom 4 -> 2ed, c: {len(selected_second_prompt_correct_df)}')
-                print(f'Axiom 4 -> 2ed n: {len(selected_second_prompt_notcorrect_df)}')
-                
-            
-            elif axiom_num == '5':
-                selected_list_ = answer_not_equal_list
-                answer_not_equal_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                selected_main_prompt_df = answer_not_equal_main_prompt_df[(answer_not_equal_main_prompt_df["exact_match"] == False)]
-            
-                selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
-                selected_second_prompt_correct_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == True]
-                selected_second_prompt_notcorrect_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == False]
-                
-                print(f'Axiom 5 -> Main {len(selected_main_prompt_df)}')
-                print(f'Axiom 5 -> 2ed, c: {len(selected_second_prompt_correct_df)}')
-                print(f'Axiom 5 -> 2ed, n: {len(selected_second_prompt_notcorrect_df)}')
-                
-            for uncertainty_model in ['PE', ]: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
-                unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
-                unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
-                
+                    selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+                    selected_second_prompt_correct_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == True]
+                    selected_second_prompt_notcorrect_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == False]
+                    selected_main_prompt_correct_df_ = selected_main_prompt_df[selected_main_prompt_df['id'].isin(selected_second_prompt_correct_df['id'].tolist())] 
+                    
+                    print(f'Main:  {len(selected_main_prompt_correct_df_)}')
+                    print(f'2ed c: {len(selected_second_prompt_correct_df)}')
+                    all_axioms_ids.extend(selected_main_prompt_correct_df_['id'].tolist())
+
                 # Get Uncertainty
                 if axiom_num in ['1', '2']:
                     uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
                     uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
                     uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
                     uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+                    stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+                    print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                    print(f"Is it significant? {is_significant}")
                 
-                    print(f"Axiom {axiom_num}, {uncertainty_model}")
-                    print(f"Unc. : {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-                
-                elif axiom_num in ['4', '5']:
-                    uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
-                    uncertainty_values_second_prompt_correct = selected_second_prompt_correct_df[unc_model_key_second_prompt]
+                elif axiom_num in ['4']:
+                    uncertainty_values_main_prompt = selected_main_prompt_notcorrect_df_[unc_model_key_main_prompt]
                     uncertainty_values_second_prompt_notcorrect = selected_second_prompt_notcorrect_df[unc_model_key_second_prompt]
-                    
+                    uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+                    uncertainty_values_second_prompt_notcorrect_filtered = uncertainty_values_second_prompt_notcorrect[uncertainty_values_second_prompt_notcorrect<UNC_THERESHOLD] 
+                    stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt_notcorrect.tolist())
+                    print(f"Uncertainty: {uncertainty_values_second_prompt_notcorrect_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                    print(f"Is it significant? {is_significant}")
+
+                elif axiom_num in ['5']:
+                    uncertainty_values_main_prompt = selected_main_prompt_correct_df_[unc_model_key_main_prompt]
+                    uncertainty_values_second_prompt_correct = selected_second_prompt_correct_df[unc_model_key_second_prompt]
                     uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
                     uncertainty_values_second_prompt_correct_filtered = uncertainty_values_second_prompt_correct[uncertainty_values_second_prompt_correct<UNC_THERESHOLD] 
-                    uncertainty_values_second_prompt_notcorrect_filtered = uncertainty_values_second_prompt_notcorrect[uncertainty_values_second_prompt_notcorrect<UNC_THERESHOLD] 
+                    stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt_correct.tolist())
+                    print(f"Uncertainty: {uncertainty_values_second_prompt_correct_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                    print(f"Is it significant? {is_significant}")
+           
+                print('\n')
+            
+            # For ids not in axioms
+            print(f"= Not in Axioms =======")
+            result_df_main_prompt_not_in_axioms = result_df_main_prompt[~result_df_main_prompt['id'].isin(all_axioms_ids)]
+            result_df_second_prompt_not_in_axioms = result_df_second_prompt[(result_df_second_prompt['id'].isin(result_df_main_prompt_not_in_axioms['id'].tolist()))]
+            result_df_main_prompt_not_in_axioms_ = result_df_main_prompt_not_in_axioms[result_df_main_prompt_not_in_axioms['id'].isin(result_df_second_prompt_not_in_axioms['id'].tolist())] 
+            print(f'# Samples: {len(result_df_main_prompt_not_in_axioms_)}')
+            print(f'# Samples: {len(result_df_second_prompt_not_in_axioms)}')
+            
+            uncertainty_values_main_prompt =  result_df_main_prompt_not_in_axioms_[unc_model_key_main_prompt]
+            uncertainty_values_second_prompt = result_df_second_prompt_not_in_axioms[unc_model_key_second_prompt]
+            uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+            uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+            stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+            print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+            print(f"Is it significant? {is_significant}")
+            print('\n')
+            
 
-                    print(f"Axiom {axiom_num}, {uncertainty_model}")
-                    print(f"Unc. corr : {uncertainty_values_second_prompt_correct_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-                    print(f"Unc. ncor : {uncertainty_values_second_prompt_notcorrect_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-
-
-                # # Get Confidence
-                # uncertainty_values_all_main_prompt = result_df_main_prompt[unc_model_key_main_prompt]
-                # uncertainty_values_all_second_prompt = result_df_second_prompt[unc_model_key_second_prompt]
-                # uncertainty_values_all_main_prompt_filtered = np.array(uncertainty_values_all_main_prompt[uncertainty_values_all_main_prompt<UNC_THERESHOLD])
-                # uncertainty_values_all_second_prompt_filtered = np.array(uncertainty_values_all_second_prompt[uncertainty_values_all_second_prompt<UNC_THERESHOLD])
-                # min_all_main, max_all_main = np.min(uncertainty_values_all_main_prompt_filtered), np.max(uncertainty_values_all_main_prompt_filtered)
-                # min_all_second, max_all_second = np.min(uncertainty_values_all_second_prompt_filtered), np.max(uncertainty_values_all_second_prompt_filtered)
-                # confidence_values_main_prompt = uncertainty_to_confidence_min_max(uncertainty_values_main_prompt_filtered, min_val=min_all_main, max_val=max_all_main)
-                # confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt_filtered, min_val=min_all_second, max_val=max_all_second)
-                
-                # Get correctness
-                # _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
-                # _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
-                # correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-                # correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-                
-                # Print results
-                # print(f"Axiom {axiom_num}, {uncertainty_model}")
-                # print(f"Unc. : {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-                # print(f"Conf.: {confidence_values_second_prompt.mean():.3f} -> {confidence_values_main_prompt.mean():.3f}")
-                # print(f"Acc. ({args.accuracy_metric}):  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-                print('\n')             
 
     # ======
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
         
-    for prompt_order in ['main', 'second', 'forth']: # 'third', 
+    for prompt_order in ['main']: # 'third', 'second', 'forth'
         print(f"=== {prompt_order} ====================================")
-        axioms12_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axioms12_output.json'
-        axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom4_output.json'
-        axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom5_output.json'
-        answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_answers_equality_output.jsonl'
+        print(f"Main: {len(result_df_main_prompt)}")
+        print(f"2ed:  {len(result_df_second_prompt)}")
+        
+        axioms12_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axioms12_output.json'
+        axiom4_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom4_output.json'
+        axiom5_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom5_output.json'
+        answers_equality_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
         answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
         os.makedirs(answers_equality_output_dir, exist_ok=True)
         

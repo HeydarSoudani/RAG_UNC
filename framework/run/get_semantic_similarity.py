@@ -44,7 +44,7 @@ def get_similarity(args):
     tokenizer = AutoTokenizer.from_pretrained(f"{args.model}", use_fast=False)
 
     # === Load importance model ===========
-    model_importance = torch.load('baselines/MARS/models/model_phrase.pth', map_location=args.device).to(args.device)
+    model_importance = torch.load('framework/pretrained_models/model_phrase.pth', map_location=args.device).to(args.device)
     # model_importance = BertModel.from_pretrained('baselines/MARS/models/model_phrase.pth').to(args.device)
     tokenizer_importance = BertTokenizerFast.from_pretrained("bert-base-uncased") 
     

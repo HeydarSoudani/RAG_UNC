@@ -26,7 +26,7 @@ UNC_THERESHOLD = 1000
 
 
 def get_axiomatic_results(args):
-    print("\n--- Step 6: Get Axiomatic Results V3 ...")
+    print("\n--- Step 6: Get Axiomatic Results V4 ...")
     print(f"""
         Model name:   {args.model}
         Dataset:      {args.dataset} / {args.subsec}
@@ -39,28 +39,14 @@ def get_axiomatic_results(args):
     # === Define output files ===================
     # archive_500samples
     model = args.model.split('/')[-1]
-    base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
     
-    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
-    with open(sequence_input_main, 'rb') as infile:
-        sequences_main = pickle.load(infile)
-    
-    base_dir_second_output = f'{args.output_dir}/{args.dataset}/run_0/'
-    if os.path.isdir(f'{base_dir_second_output}/{args.second_prompt_format}__{args.main_prompt_format}'):
-        sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
-    else:
-        sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}__q_positive/{model}_cleaned_generation_normal.pkl'
-    with open(sequence_input_secondry, 'rb') as infile:
-        sequences_secondry = pickle.load(infile)
-   
-   
     # === Load semantic model ===================
     semantic_model_name = "microsoft/deberta-large-mnli"
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
     semantic_model.eval()
-    
     
     # === Functions =============================
     keys_mapping = {
@@ -99,16 +85,15 @@ def get_axiomatic_results(args):
     
     def create_result_df(main_prompt_format, second_prompt_format):
         
-        if main_prompt_format == 'only_q':
-            generation_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{model}_cleaned_generation_{args.generation_type}.pkl'
-            similarities_input_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{model}_similarities_generation.pkl'
-            likelihoods_input_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{generation_type}/{model}_uncertainty_mars_generation.pkl'
-            correctness_input_file = f'{base_dir_output}/{main_prompt_format}__q_positive/{model}_correctness.pkl'
-        else:
-            generation_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
-            similarities_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_similarities_generation.pkl'
-            likelihoods_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
-            correctness_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_correctness.pkl'
+        results_dir = f'{base_dir}/{main_prompt_format}__{second_prompt_format}'
+        if not os.path.isdir(results_dir):
+            temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
+            results_dir = f'{base_dir}/{main_prompt_format}__{temp}'
+        
+        generation_file = f'{results_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{results_dir}/{model}_similarities_generation.pkl'
+        correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
+        likelihoods_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -173,12 +158,13 @@ def get_axiomatic_results(args):
     
     def run_axiomatic_metrics(prompt_order):
         
-        
         for axiom_num in ['1', '2']:
             print(f"= Axiom: {axiom_num} =======")
             
             if axiom_num == '1':
                 selected_main_prompt_df = result_df_main_prompt[(result_df_main_prompt["exact_match"] == True)]
+                selected_second_prompt_df = result_df_second_prompt[(result_df_second_prompt["exact_match"] == True)]
+                
                 selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
                 selected_second_prompt_correct_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == True]
                 selected_second_prompt_notcorrect_df = selected_second_prompt_df[selected_second_prompt_df["exact_match"] == False]
@@ -196,7 +182,7 @@ def get_axiomatic_results(args):
                 print(f'Axiom 2 -> 2ed n: {len(selected_second_prompt_notcorrect_df)}')
 
                 
-            for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+            for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
                 unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
                 unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
                 
@@ -214,11 +200,11 @@ def get_axiomatic_results(args):
                 print(f"Unc. ncor : {uncertainty_values_second_prompt_notcorrect_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
                 print('\n')             
 
-    # ======
-    result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
+    # ======  
+    result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
-        
-    for prompt_order in ['main', 'second']: # 'third', 'forth'
+     
+    for prompt_order in ['main']: # 'second', 'third', 'forth'
         print(f"=== {prompt_order} ====================================")
         run_axiomatic_metrics(prompt_order)
         
