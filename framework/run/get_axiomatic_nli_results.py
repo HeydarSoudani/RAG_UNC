@@ -6,21 +6,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import json
 import torch
-import random
 import pickle
 import sklearn
+import sklearn.metrics
 import argparse
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from scipy.stats import pearsonr, spearmanr
-from sentence_transformers.cross_encoder import CrossEncoder
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from transformers import pipeline
-# from minicheck.minicheck import MiniCheck
 
+from utils.significant_testing import wilcoxon_test
 from utils.utils import set_seed, uncertainty_to_confidence_min_max
-from metrics.calibration import ECE_estimate
 
 UNC_THERESHOLD = 1000
 
@@ -36,23 +33,26 @@ def get_axiomatic_results(args):
     """.replace('        ', ''))
     
     # === Define output files ===================
-    # archive_500samples
     model = args.model.split('/')[-1]
-    base_dir_output = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     
-    sequence_input_main = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    
+    # === For getting equal outputs =============
+    sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    if os.path.isdir(f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}'):
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
+    else:
+        temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{temp}/{model}_cleaned_generation_normal.pkl'
+    
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
-    
-    base_dir_second_output = f'{args.output_dir}/{args.dataset}/run_0/'
-    sequence_input_secondry = f'{base_dir_second_output}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
     with open(sequence_input_secondry, 'rb') as infile:
         sequences_secondry = pickle.load(infile)
         
+        
     # === Load semantic model ===================
-    
-    # 1) Common NLI models
     # - Labels: {0: Contradiction, 1: Neutral, 2: Entailment}
     # semantic_model_name = "microsoft/deberta-v2-xxlarge-mnli"
     # semantic_model_name = 'facebook/bart-large-mnli'
@@ -61,24 +61,6 @@ def get_axiomatic_results(args):
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
     semantic_model.eval()
-    
-    # (2), (3), (4) -> Src: https://arxiv.org/pdf/2410.03461
-    
-    # 2) MiniCheck (EMNLP24)
-    # - MiniCheck: https://huggingface.co/lytang/MiniCheck-Flan-T5-Large
-    # - pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
-    # minicheck_factual_scorer = MiniCheck(model_name='flan-t5-large', cache_dir='./ckpts')
-    
-    # 2) Hallucination Detector
-    # - Vectara: https://huggingface.co/vectara/hallucination_evaluation_model
-    # - It needs updated version of transformer: pip install --upgrade transformers
-    # hallucination_detector = AutoModelForSequenceClassification.from_pretrained(
-    #     'vectara/hallucination_evaluation_model', trust_remote_code=True)
-
-    # 3) Long NLI: 
-    # - Tasksource: https://huggingface.co/tasksource/deberta-base-long-nli
-    # long_nli_model = pipeline("text-classification", model="tasksource/deberta-base-long-nli", device=args.device)
-
     
     # === Functions =============================
     keys_mapping = {
@@ -117,10 +99,15 @@ def get_axiomatic_results(args):
     
     def create_result_df(main_prompt_format, second_prompt_format):
         
-        generation_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
-        similarities_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_similarities_generation.pkl'
-        likelihoods_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
-        correctness_input_file = f'{base_dir_output}/{main_prompt_format}__{second_prompt_format}/{model}_correctness.pkl'
+        results_dir = f'{base_dir}/{main_prompt_format}__{second_prompt_format}'
+        if not os.path.isdir(results_dir):
+            temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
+            results_dir = f'{base_dir}/{main_prompt_format}__{temp}'
+        
+        generation_file = f'{results_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{results_dir}/{model}_similarities_generation.pkl'
+        correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
+        likelihoods_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -160,10 +147,10 @@ def get_axiomatic_results(args):
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
             'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
             'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
-            'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
-            'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
-            'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
-            'average_predictive_entropy_importance_max_fifth_prompt', 'predictive_entropy_over_concepts_importance_max_fifth_prompt',
+            # 'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
+            # 'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
+            # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
+            # 'average_predictive_entropy_importance_max_fifth_prompt', 'predictive_entropy_over_concepts_importance_max_fifth_prompt',
         )
         likelihoods = likelihoods_results
         likelihoods_small = dict((k, likelihoods[k]) for k in keys_to_use)
@@ -174,9 +161,7 @@ def get_axiomatic_results(args):
                 likelihoods_small[key] = torch.squeeze(likelihoods_small[key].cpu())
         likelihoods_df = pd.DataFrame.from_dict(likelihoods_small)
         likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
-        
-        # 
-        # groundedness_df = pd.DataFrame(groundedness_results)
+    
 
         # 
         result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id') # .merge(groundedness_df, on='id')
@@ -210,102 +195,6 @@ def get_axiomatic_results(args):
         
         return correctness_results, correctness_bin, one_minus_correctness
     
-    def compute_answer_equality(sequence_1, sequence_2, threshold=0.5):
-        
-        sequence_2_ = {}
-        for sample in sequence_2:
-            sequence_2_[sample['id']] = sample
-        
-        agree_list = []
-        non_agree_list = []
-        with open(similarity_output_jsonl_file, 'w') as jl_ofile:
-            
-            for i, sample in tqdm(enumerate(sequence_1)):
-                id_ = sample['id']
-                
-                if id_ in sequence_2_:
-                    generation_most_likely_seq1 = sample['cleaned_most_likely_generation']
-                    generation_most_likely_seq2 = sequence_2_[id_]['cleaned_most_likely_generation']
-                    
-                    # print(generation_most_likely_seq1)
-                    # print(generation_most_likely_seq2)
-                    
-                    similarity = similarity_model.predict([generation_most_likely_seq1, generation_most_likely_seq2])
-                    
-                    if similarity > threshold:
-                        agree_list.append(id_)
-                    else:
-                        non_agree_list.append(id_)
-                    
-                    # print(similarity)
-                    result_item = {
-                        'id': id_,
-                        'question': sample['question'],
-                        'generation_seq_1': generation_most_likely_seq1,
-                        'generation_seq_2': generation_most_likely_seq2,
-                        'sim_score': float(similarity)
-                    }
-                    jl_ofile.write(json.dumps(result_item) + '\n')
-                    
-                
-                else:
-                    print(f"\nQuery {id_} is not common between two sequences !!!")
-            
-        return agree_list, non_agree_list
-       
-    def compute_answer_equality_nli(sequence_1, sequence_2):
-        sequence_2_ = {}
-        for sample in sequence_2:
-            sequence_2_[sample['id']] = sample
-        
-        semantically_similar_list = []
-        semantically_not_similar_list = []
-        
-        ### Similar to semantic similarity
-        with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
-            for i, sample in tqdm(enumerate(sequence_1)):
-                id_ = sample['id']
-                question = sample['question']
-                is_equal = False
-                
-                if id_ in sequence_2_:
-                    generation_most_likely_seq1 = sample['cleaned_most_likely_generation']
-                    generation_most_likely_seq2 = sequence_2_[id_]['cleaned_most_likely_generation']
-                    qa_1 = question + ' ' + generation_most_likely_seq1
-                    qa_2 = question + ' ' + generation_most_likely_seq2
-                    
-                    input = generation_most_likely_seq1 + ' [SEP] ' + generation_most_likely_seq2
-                    encoded_input = semantic_tokenizer.encode(input, padding=True)
-                    prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
-                    predicted_label = torch.argmax(prediction, dim=1)
-
-                    reverse_input = generation_most_likely_seq2 + ' [SEP] ' + generation_most_likely_seq1
-                    encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
-                    reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
-                    reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
-                    
-                    if 0 in predicted_label or 0 in reverse_predicted_label:
-                        semantically_not_similar_list.append(id_)
-                        is_equal = False
-                    else:
-                        semantically_similar_list.append(id_)
-                        is_equal = True
-
-                    result_item = {
-                        'id': id_,
-                        'question': sample['question'],
-                        'answers': sample['answers'],
-                        'generation_seq_1': generation_most_likely_seq1,
-                        'generation_seq_2': generation_most_likely_seq2,
-                        'is_equal': is_equal
-                    }
-                    jl_ofile.write(json.dumps(result_item) + '\n')
-
-                else:
-                    print(f"\nQuery {id_} is not common between two sequences !!!")
-
-        return semantically_similar_list, semantically_not_similar_list
-
     def compute_answer_equality_em(sequence_1, sequence_2):
         sequence_2_ = {}
         for sample in sequence_2:
@@ -316,376 +205,285 @@ def get_axiomatic_results(args):
         with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
             for i, sample in tqdm(enumerate(sequence_1)):
                 id_ = sample['id']
+                is_equal = False
+                seq1 = sample['cleaned_most_likely_generation'].strip()
                 
                 if id_ in sequence_2_:
-                    seq1 = sample['cleaned_most_likely_generation'].strip()
                     seq2 = sequence_2_[id_]['cleaned_most_likely_generation'].strip()
         
-                    is_equal = False
-                    
-                    if seq1=='\n' or seq2=='\n':
-                        is_equal = False
-                    else:
-                        if seq1 == seq2 or seq1.lower() == seq2 or seq1.capitalize() == seq2:
-                            is_equal = True
-                        if seq2 == seq1 or seq2.lower() == seq1 or seq2.capitalize() == seq1:
-                            is_equal = True
+                    # if seq1=='\n' or seq2=='\n':
+                    #     is_equal = False
+                    # elif seq1=='' or seq2=='':
+                    #     is_equal = False
+                    # else:
+                    if seq1 == seq2 or seq1.lower() == seq2 or seq1.capitalize() == seq2:
+                        is_equal = True
+                    if seq2 == seq1 or seq2.lower() == seq1 or seq2.capitalize() == seq1:
+                        is_equal = True
             
                     if is_equal:
                         semantically_similar_list.append(id_)
                     else:
                         semantically_not_similar_list.append(id_)
-                        
-            
-                    result_item = {
-                        'id': id_,
-                        'question': sample['question'],
-                        'answers': sample['answers'],
-                        'generation_seq_1': seq1,
-                        'generation_seq_2': seq2,
-                        'is_equal': is_equal
-                    }
-                    jl_ofile.write(json.dumps(result_item) + '\n')
 
                 else:
                     print(f"\nQuery {id_} is not common between two sequences !!!")
+                    seq2 = ""
+                    semantically_not_similar_list.append(id_)
+
+                result_item = {
+                    'id': id_,
+                    'question': sample['question'],
+                    'answers': sample['answers'],
+                    'generation_seq_1': seq1,
+                    'generation_seq_2': seq2,
+                    'is_equal': is_equal
+                }
+                jl_ofile.write(json.dumps(result_item) + '\n')
 
         return semantically_similar_list, semantically_not_similar_list
 
-    def in_doc_existence(sequences, ids):
-        samples = [item for item in sequences if item['id'] in ids]
+    def get_document_output_relation_axiom12(queries_list, axiom_output_file):
         
-        doc_exist, doc_not_exist = [], []
-        for idx, sample in enumerate(samples):
-            answer = sample['cleaned_most_likely_generation']
-            prompt_text = sample['prompt_text']
-            doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
-            
-            # def is_answer_in_doc(answer, doc, threshold=0.8):
-            #     return SequenceMatcher(None, answer, doc).ratio() > threshold
-            
-            # if answer in doc_text:
-            #     print('1')
-            if answer.lower() in doc_text.lower():
-                doc_exist.append(sample['id'])
-            else:
-                doc_not_exist.append(sample['id'])
-            # if re.search(r'\b' + re.escape(answer) + r'\b', doc_text, re.IGNORECASE):
-            #     print('3')
-            # if is_answer_in_doc(answer, doc_text):
-            #     print('4')
-            # else:
-            #     print('5')
-        return doc_exist, doc_not_exist
-    
-    def get_entail_contradict_relations_nli(axioms, queries_list):
-        # Src: https://huggingface.co/vectara/hallucination_evaluation_model
-        # Input: a list of pairs of (premise, hypothesis)
-        # It returns a score between 0 and 1 for each pair where
-        # 0 means that the hypothesis is not evidenced at all by the premise and
-        # 1 means the hypothesis is fully supported by the premise.
+        if os.path.isfile(axiom_output_file):
+            print(f"{axiom_output_file} exists.")
+            with open(axiom_output_file, 'r') as file:
+                relation_main = json.load(file)['main'] 
         
-        if axioms == "12":
-            results_file = axioms12_output_jsonl_file
-            sequences = sequences_main
-        elif axioms == "4":
-            results_file = axiom4_output_jsonl_file
-            sequences = sequences_main
-        elif axioms == "5":
-            results_file = axiom5_output_jsonl_file
-            sequences = sequences_secondry
-            
-            sequences_main_ = {}
-            for item in sequences_main:
-                sequences_main_[item['id']] = item
-            
         else:
-            print(f"No valid axiom number !!!")
-        
-        if os.path.isfile(results_file):
-            print(f"{results_file} exists.")
-            with open(results_file, 'r') as file:
-                relation_queries = json.load(file) 
-        else:
-            relation_queries = {
-                'entailment': [],
-                'neutral': [],
-                'contradiction': []
-            }
-        
-            with torch.no_grad():
-                for idx, sample in tqdm(enumerate(sequences)):
-                    id_ = sample['id']
+            relation_main = {'entailment': [], 'neutral': [], 'contradiction': []}
+            for idx, sample in tqdm(enumerate(sequences_main)):
+                id_ = sample['id']
+                if id_ in queries_list:
                     
-                    if id_ in queries_list:
-                        
-                        # Get and prepare variables
-                        question = sample['question']
-                        generated_text_most_likely = sample['most_likely_generation']
-                        
-                        if axioms in ["12", "4"]:
-                            prompt_text = sample['prompt_text']
-                        elif axioms == "5":
-                            prompt_text = sequences_main_[id_]['prompt_text']
-                        
-                        doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
-                        answer_ = f"{question} {generated_text_most_likely}"
-
-                        
-                        # Method 1) Common NLI: based on label
-                        # encoded_input = semantic_tokenizer.encode_plus(
-                        #     doc_text,
-                        #     answer_,
-                        #     padding=True,
-                        #     truncation=True,
-                        #     max_length=512,
-                        #     return_tensors="pt",
-                        #     truncation_strategy="only_first"
-                        # )
-                        # encoded_input = {key: val.to(args.device) for key, val in encoded_input.items()}
-                        # prediction = semantic_model(**encoded_input).logits
-                        # predicted_label = prediction.argmax(dim=1).item()
-
-                        # item = (id_, predicted_label)
-                        # if predicted_label==0: # entailment
-                        #     relation_queries['entailment'].append(item)
-                        # elif predicted_label==1: # neutral
-                        #     relation_queries['neutral'].append(item)
-                        # elif predicted_label==2: # contradiction
-                        #     relation_queries['contradiction'].append(item)
-                        # else:
-                        #     relation_queries['neutral'].append(item)
-                        ### === For BART  
-                        # if predicted_label==0: # entailment
-                        #     relation_queries['contradiction'].append(item)
-                        # elif predicted_label==1: # neutral
-                        #     relation_queries['neutral'].append(item)
-                        # elif predicted_label==2: # contradiction
-                        #     relation_queries['entailment'].append(item)
-                        # else:
-                        #     relation_queries['neutral'].append(item)
+                    # === Prapare inputs
+                    question = sample['question']
+                    generated_text_most_likely = sample['most_likely_generation']
+                    prompt_text = sample['prompt_text']
+                    doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
+                    answer_ = f"{question} {generated_text_most_likely}"
                     
+                    # === Common NLI: Similar to semantic semilarity
+                    input = doc_text + ' [SEP] ' + answer_
+                    encoded_input = semantic_tokenizer.encode(input, padding=True)
+                    prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+                    predicted_label = torch.argmax(prediction, dim=1)
+                    
+                    reverse_input = answer_ + ' [SEP] ' + doc_text
+                    encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+                    reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+                    reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+                    
+                    item = (id_, torch.softmax(prediction, dim=1).tolist()[0], torch.softmax(reverse_prediction, dim=1).tolist()[0])
+                    if 0 in predicted_label or 0 in reverse_predicted_label:
+                        relation_main['contradiction'].append(item)
+                    else:
+                        relation_main['entailment'].append(item)
             
-                        # Method 2) MiniCheck
-                        # pred_label, predicted_score_, _, _ = minicheck_factual_scorer.score(docs=[doc_text], claims=[answer_])
-                        # predicted_score = predicted_score_[0]
-                        
-                        
-                        # Method 3) 
-                        # predicted_score_ = hallucination_detector.predict([(doc_text, answer_)])
-                        # predicted_score = predicted_score_.item()
-                        
-                        # item = (id_, predicted_score)
-                        # if predicted_score > 0.50: # entailment
-                        #     relation_queries['entailment'].append(item)
-                        # elif predicted_score < 0.50: # contradiction
-                        #     relation_queries['contradiction'].append(item)
-                        # else:
-                        #     relation_queries['neutral'].append(item)
-            
-            
-                        # Method 4) Long NLI 
-                        # predicted_score_ = long_nli_model([dict(text=doc_text, text_pair=answer_)])
-                        # item = (id_, predicted_score_[0]['score'])
-                        # relation_queries[predicted_score_[0]['label']].append(item)
-                        
-                        
-                        # Method 5) Common NLI: Similar to semantic semilarity
-                        input = doc_text + ' [SEP] ' + answer_
-                        encoded_input = semantic_tokenizer.encode(input, padding=True)
-                        prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
-                        predicted_label = torch.argmax(prediction, dim=1)
-                        
-                        reverse_input = answer_ + ' [SEP] ' + doc_text
-                        encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
-                        reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
-                        reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
-                        
-                        item = (id_, torch.softmax(prediction, dim=1).tolist()[0], torch.softmax(reverse_prediction, dim=1).tolist()[0])
-                        if 0 in predicted_label or 0 in reverse_predicted_label:
-                            relation_queries['contradiction'].append(item)
-                        else:
-                            relation_queries['entailment'].append(item)
-                        
             # Write to file 
-            with open(results_file, 'w') as file:
-                json.dump(relation_queries, file, indent=4)
+            axiom_output = {'main': relation_main}
+            with open(axiom_output_file, 'w') as file:
+                json.dump(axiom_output, file, indent=4)
+            
+        axiom_1_items_main = relation_main['entailment']
+        axiom_2_items_main = relation_main['contradiction']
+            
+        return axiom_1_items_main, axiom_2_items_main        
         
-        return relation_queries
+    def get_document_output_relation_axiom45(queries_list, axiom_output_file):
+        
+        if os.path.isfile(axiom_output_file):
+            print(f"{axiom_output_file} exists.")
+            with open(axiom_output_file, 'r') as file:
+                data = json.load(file)
+                relation_main = data['main'] 
+                relation_2ed = data['second']
+        
+        else:
+            relation_main = {'entailment': [], 'neutral': [], 'contradiction': []}
+            relation_2ed = {'entailment': [], 'neutral': [], 'contradiction': []}
+        
+            ### === Loop on main ====================
+            for idx, sample in tqdm(enumerate(sequences_main)):
+                id_ = sample['id']
+                if id_ in queries_list:
+                    # === Prapare inputs
+                    question = sample['question']
+                    generated_text_most_likely = sample['most_likely_generation']
+                    prompt_text = sample['prompt_text']
+                    doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
+                    answer_ = f"{question} {generated_text_most_likely}"
+            
+                    # === Common NLI: Similar to semantic semilarity
+                    input = doc_text + ' [SEP] ' + answer_
+                    encoded_input = semantic_tokenizer.encode(input, padding=True)
+                    prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+                    predicted_label = torch.argmax(prediction, dim=1)
+                    
+                    reverse_input = answer_ + ' [SEP] ' + doc_text
+                    encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+                    reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+                    reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+                    
+                    item = (id_, torch.softmax(prediction, dim=1).tolist()[0], torch.softmax(reverse_prediction, dim=1).tolist()[0])
+                    if 0 in predicted_label or 0 in reverse_predicted_label:
+                        relation_main['contradiction'].append(item)
+                    else:
+                        relation_main['entailment'].append(item)
+            
+            ### === Loop on second ====================
+            for idx, sample in tqdm(enumerate(sequences_secondry)):
+                id_ = sample['id']
+                if id_ in queries_list:
+                    
+                    # === Prapare inputs
+                    question = sample['question']
+                    generated_text_most_likely = sample['most_likely_generation']
+                    prompt_text = sample['prompt_text']
+                    doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
+                    answer_ = f"{question} {generated_text_most_likely}"
+            
+                    # === Common NLI: Similar to semantic semilarity
+                    input = doc_text + ' [SEP] ' + answer_
+                    encoded_input = semantic_tokenizer.encode(input, padding=True)
+                    prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+                    predicted_label = torch.argmax(prediction, dim=1)
+                    
+                    reverse_input = answer_ + ' [SEP] ' + doc_text
+                    encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+                    reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+                    reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+                    
+                    item = (id_, torch.softmax(prediction, dim=1).tolist()[0], torch.softmax(reverse_prediction, dim=1).tolist()[0])
+                    if 0 in predicted_label or 0 in reverse_predicted_label:
+                        relation_2ed['contradiction'].append(item)
+                    else:
+                        relation_2ed['entailment'].append(item)
 
+            # Write to file 
+            axiom_output = {'main': relation_main, 'second': relation_2ed}
+            with open(axiom_output_file, 'w') as file:
+                json.dump(axiom_output, file, indent=4)
+
+        # Axiom 4
+        main_entailment_ids = {item[0] for item in relation_main['entailment']}
+        second_contradiction_ids = {item[0] for item in relation_2ed['contradiction']}
+        axiom_4_ids = main_entailment_ids & second_contradiction_ids
+        axiom_4_items_main = [item for item in relation_main['entailment'] if item[0] in axiom_4_ids]
+        axiom_4_items_2ed = [item for item in relation_2ed['contradiction'] if item[0] in axiom_4_ids]
+
+        # Axiom 5
+        main_contradiction_ids = {item[0] for item in relation_main['contradiction']}
+        second_entailment_ids = {item[0] for item in relation_2ed['entailment']}
+        axiom_5_ids = main_contradiction_ids & second_entailment_ids
+        axiom_5_items_main = [item for item in relation_main['contradiction'] if item[0] in axiom_5_ids]
+        axiom_5_items_2ed = [item for item in relation_2ed['entailment'] if item[0] in axiom_5_ids]
+        
+        # Others
+        items_to_remove = axiom_4_ids | axiom_5_ids 
+        other_ids = [item for item in queries_list if item not in items_to_remove]
+        other_items = [item for item in relation_main['entailment'] if item[0] in other_ids]
+        other_items.extend([item for item in relation_main['contradiction'] if item[0] in other_ids])
+
+        return axiom_4_items_main, axiom_5_items_main, other_items
+    
     def run_axiomatic_metrics(prompt_order):
         
-        # Check if answer1 is equal to answer2
-        if os.path.isfile(answers_equality_output_jsonl_file):
-            print(f"{answers_equality_output_jsonl_file} exists.")
-            agree_list, non_agree_list = [], []
-            with open(answers_equality_output_jsonl_file, 'r') as file:
-                for line in file:
-                    if line.strip():
-                        item = json.loads(line)
-                        if item['is_equal']:
-                            agree_list.append(item['id'])
-                        else:
-                            non_agree_list.append(item['id'])
-        else:
-            print("Computing similarity ...")
-            # similarity_model_name = "cross-encoder/stsb-roberta-large"
-            # similarity_model = CrossEncoder(model_name=similarity_model_name, num_labels=1)
-            # similarity_model.model.to(args.device)
-            # agree_list, non_agree_list = compute_answer_equality_nli(sequences_main, sequences_secondry)
-            agree_list, non_agree_list = compute_answer_equality_em(sequences_main, sequences_secondry)
-            # agree_list, non_agree_list = get_aggreement(sequences_main, sequences_secondry)
-    
-        axioms_num = '12'
-        axioms_12 = get_entail_contradict_relations_nli(axioms_num, agree_list)
-        print(f"Entailment:        {len(axioms_12['entailment'])} ({(len(axioms_12['entailment']) / len(sequences_main))*100:.2f}%)")
-        print(f"Contradiction:     {len(axioms_12['contradiction'])} ({len(axioms_12['contradiction']) / len(sequences_main)*100:.2f}%)")
-        print(f"All equal samples: {len(agree_list)} ({(len(agree_list) / len(sequences_main))*100:.2f}%)")
-        print('\n')
-        
-        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 
+        ### === Step1: Check if answer1 is equal to answer2 ===
+        def get_output_equality():
+            if os.path.isfile(answers_equality_output_jsonl_file):
+                print(f"{answers_equality_output_jsonl_file} exists.")
+                answer_equal_list, answer_not_equal_list = [], []
+                with open(answers_equality_output_jsonl_file, 'r') as file:
+                    for line in file:
+                        if line.strip():
+                            item = json.loads(line)
+                            if item['is_equal']:
+                                answer_equal_list.append(item['id'])
+                            else:
+                                answer_not_equal_list.append(item['id'])
+            else:
+                print("Computing similarity ...")
+                answer_equal_list, answer_not_equal_list = compute_answer_equality_em(sequences_main, sequences_secondry)
+            
+            print(f"Answer equal: {len(answer_equal_list)}")
+            print(f"Answer not equal: {len(answer_not_equal_list)}")
+            return answer_equal_list, answer_not_equal_list
+        answer_equal_list, answer_not_equal_list = get_output_equality()
+
+        ### === Step2: Compute Axioms =========================
+        for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+            print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
-        
             
-            # # === Axiom 1,2
-            if args.main_prompt_format in [
-                'bm25_retriever_top1', 'bm25_retriever_top5',
-                'rerank_retriever_top1', 'rerank_retriever_top5'
-            ]:
-                for relation_key in ['entailment', 'contradiction']: #  'neutral'
-                    selected_list = axioms_12[relation_key]
-                    
-                    if len(selected_list) > 0:
-                        selected_list_ = [tup[0] for tup in selected_list]
-                        agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                        agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
-
-                        # Get Correctness
-                        _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(agree_main_prompt_df)
-                        _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(agree_second_prompt_df)
-                        correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-                        correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-                    
-                        # Get Uncertainty
-                        uncertainty_values_main_prompt =  agree_main_prompt_df[unc_model_key_main_prompt]
-                        uncertainty_values_second_prompt = agree_second_prompt_df[unc_model_key_second_prompt]
-                        uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
-                        uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
-            
-                        # Get Confidence
-                        uncertainty_values_all_main_prompt = result_df_main_prompt[unc_model_key_main_prompt]
-                        uncertainty_values_all_second_prompt = result_df_second_prompt[unc_model_key_second_prompt]
-                        uncertainty_values_all_main_prompt_filtered = np.array(uncertainty_values_all_main_prompt[uncertainty_values_all_main_prompt<UNC_THERESHOLD])
-                        uncertainty_values_all_second_prompt_filtered = np.array(uncertainty_values_all_second_prompt[uncertainty_values_all_second_prompt<UNC_THERESHOLD])
-                        min_all_main, max_all_main = np.min(uncertainty_values_all_main_prompt_filtered), np.max(uncertainty_values_all_main_prompt_filtered)
-                        min_all_second, max_all_second = np.min(uncertainty_values_all_second_prompt_filtered), np.max(uncertainty_values_all_second_prompt_filtered)
-                        confidence_values_main_prompt = uncertainty_to_confidence_min_max(uncertainty_values_main_prompt_filtered, min_val=min_all_main, max_val=max_all_main)
-                        confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt_filtered, min_val=min_all_second, max_val=max_all_second)
-            
-                        # Get AUROC
-                        if len(set(correctness_main_prompt_bin)) == 1:
-                            print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
-                            auroc_main_prompt = 0.5
-                            auroc_second_prompt = 0.5
-                        else:
-                            auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_values_main_prompt)
-                            auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_values_second_prompt)
-                        
-                        # Get Spearman
-                        spearman_main_prompt_corr, spearman_main_prompt_p_value = spearmanr(1-correctness_main_prompt_bin, uncertainty_values_main_prompt)
-                        spearman_second_prompt_corr, spearman_second_prompt_p_value = spearmanr(1-correctness_second_prompt_bin, uncertainty_values_second_prompt)
-                        
-                        
-                        # Print results
-                        print(f"{uncertainty_model}, Axiom12: {relation_key}")
-                        print(f"Acc.:  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-                        print(f"Unc.:  {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-                        print(f"Conf.: {confidence_values_second_prompt.mean():.3f} -> {confidence_values_main_prompt.mean():.3f}")
-                        print(f"AUROC:       {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-                        print(f"Spearman:    {round(spearman_second_prompt_corr, 3)}±{round(spearman_second_prompt_p_value, 3)} -> {round(spearman_main_prompt_corr, 3)}±{round(spearman_main_prompt_p_value, 3)}")
-                        print('\n')             
-                        
-                    else: 
-                        print(f"{relation_key} does not contain data!!!")
-                        print('\n')
-
-            # === Axiom 1,2,3
-            if args.main_prompt_format in ['q_positive', 'q_negative', 'q_conflict']:
-                selected_list = agree_list
-                if args.main_prompt_format in ['q_positive', 'q_negative']:
-                    agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list)]
-                    agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list)]
-                elif args.main_prompt_format == 'q_conflict':
-                    # selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt["exact_match"] == True]
-                    agree_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list)]
-                    agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list)]
-                    # agree_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(agree_main_prompt_df['id'].tolist())]
-                # elif args.main_prompt_format == 'q_conflict':
+            all_axioms_ids = []
+            for axiom_num in ['1', '2', '4', '5', 'other']: # '1', '2', '4', '5', 'other'
+                print(f"== Axiom: {axiom_num} ===")
                 
+                # === Get samples =========================
+                if axiom_num in ['1', '2']:
+                    axiom1_items, axiom2_items = get_document_output_relation_axiom12(answer_equal_list, axioms12_output_file)
+                    selected_list = axiom1_items if axiom_num=='1' else axiom2_items
+                
+                elif axiom_num in ['4', '5', 'other']:
+                    axiom4_items, axiom5_items, other_items = get_document_output_relation_axiom45(answer_not_equal_list, axioms45_output_file)
+                    selected_list = axiom4_items if axiom_num=='4' else axiom5_items if axiom_num=='5' else other_items
+                    
                 if len(selected_list) > 0:
-                    # selected_list_ = [tup[0] for tup in selected_list]
+                    selected_list_ = [tup[0] for tup in selected_list]
+                    selected_main_prompt_df_ = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                    selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+                    selected_main_prompt_df = selected_main_prompt_df_[selected_main_prompt_df_['id'].isin(selected_second_prompt_df['id'].tolist())] 
+                    print(f'# Samples: {len(selected_main_prompt_df)}')
+                    print(f'# Samples: {len(selected_main_prompt_df)}')
+                    all_axioms_ids.extend(selected_main_prompt_df['id'].tolist())
                     
+                # === Get Uncertainty =====================
+                # if axiom_num in ['1', '2']:
+                uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
+                uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
+                uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+                uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+                stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+                print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                print(f"Is it significant? {is_significant}")
+                
+                # Get Correctness
+                _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
+                _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
+                correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
+                correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
+                
+                # Get AUROC
+                if len(set(correctness_main_prompt_bin)) == 1:
+                    print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
+                    auroc_main_prompt = 0.5
+                    auroc_second_prompt = 0.5
+                else:
+                    auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_values_main_prompt)
+                    auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_values_second_prompt)
+                
+                # Get Spearman
+                spearman_main_prompt_corr, spearman_main_prompt_p_value = spearmanr(1-correctness_main_prompt_bin, uncertainty_values_main_prompt)
+                spearman_second_prompt_corr, spearman_second_prompt_p_value = spearmanr(1-correctness_second_prompt_bin, uncertainty_values_second_prompt)
+                
+                print(f"Accuracy: {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
+                print(f"AUROC:    {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
+                print(f"Spearman: {round(spearman_second_prompt_corr, 3)}±{round(spearman_second_prompt_p_value, 3)} -> {round(spearman_main_prompt_corr, 3)}±{round(spearman_main_prompt_p_value, 3)}")
 
-                    # Get correctness
-                    _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(agree_main_prompt_df)
-                    _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(agree_second_prompt_df)
-                    correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-                    correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-
-                    # Get uncertainty
-                    uncertainty_values_main_prompt =  agree_main_prompt_df[unc_model_key_main_prompt]
-                    uncertainty_values_second_prompt = agree_second_prompt_df[unc_model_key_second_prompt]
-                    uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
-                    uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
-                    
-                    # Get Confidence
-                    uncertainty_values_all_main_prompt = result_df_main_prompt[unc_model_key_main_prompt]
-                    uncertainty_values_all_second_prompt = result_df_second_prompt[unc_model_key_second_prompt]
-                    uncertainty_values_all_main_prompt_filtered = np.array(uncertainty_values_all_main_prompt[uncertainty_values_all_main_prompt<UNC_THERESHOLD])
-                    uncertainty_values_all_second_prompt_filtered = np.array(uncertainty_values_all_second_prompt[uncertainty_values_all_second_prompt<UNC_THERESHOLD])
-                    min_all_main, max_all_main = np.min(uncertainty_values_all_main_prompt_filtered), np.max(uncertainty_values_all_main_prompt_filtered)
-                    min_all_second, max_all_second = np.min(uncertainty_values_all_second_prompt_filtered), np.max(uncertainty_values_all_second_prompt_filtered)
-                    confidence_values_main_prompt = uncertainty_to_confidence_min_max(uncertainty_values_main_prompt_filtered, min_val=min_all_main, max_val=max_all_main)
-                    confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt_filtered, min_val=min_all_second, max_val=max_all_second)
-                    
-                    if len(set(correctness_main_prompt_bin)) == 1:
-                        print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
-                        auroc_main_prompt = 0.5
-                        auroc_second_prompt = 0.5
-                    else:
-                        auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_values_main_prompt)
-                        auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_values_second_prompt)
-                    
-                    if args.main_prompt_format == 'q_positive':
-                        print(f"{uncertainty_model}, Axiom1: Relevant")
-                    elif args.main_prompt_format == 'q_conflict':
-                        print(f"{uncertainty_model}, Axiom2: Conflict")
-                    elif args.main_prompt_format == 'q_negative':
-                        print(f"{uncertainty_model}, Axiom3: Irrelevant")
-                    
-                    
-                    print(f"Acc. ({args.accuracy_metric}):  {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-                    print(f"Unc.:  {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-                    print(f"Conf.: {confidence_values_second_prompt.mean():.3f} -> {confidence_values_main_prompt.mean():.3f}")
-                    print(f"AUROC: {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-                    print('\n')             
-                    
-                else: 
-                    print(f"This list does not contain data!!!")
-                    print('\n')
-            
-        
     # ======
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
-        
-    for prompt_order in ['main', 'second']: # ,  'third', 'forth'
+      
+    for prompt_order in ['main']: # 'second', 'third', 'forth'
         print(f"=== {prompt_order} ====================================")
-        axioms12_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axioms12_output.json'
-        axiom4_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom4_output.json'
-        axiom5_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom5_output.json'
-        answers_equality_output_jsonl_file = f'{base_dir_output}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_answers_equality_output.jsonl'
+        print(f"Main: {len(result_df_main_prompt)}")
+        print(f"2ed:  {len(result_df_second_prompt)}")
+        
+        axioms12_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axioms12_output.json'
+        axioms45_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axiom45_output.json'
+        answers_equality_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
         answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
         os.makedirs(answers_equality_output_dir, exist_ok=True)
         
@@ -696,14 +494,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqswap', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -752,7 +550,7 @@ if __name__ == "__main__":
     set_seed(args.seed)
     get_axiomatic_results(args)
     
-    # python framework/run/get_axiomatic_results.py
+    # python framework/run/get_axiomatic_nli_results.py
     
     
     
@@ -795,6 +593,268 @@ if __name__ == "__main__":
     
     
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+        #     # Get Confidence
+        # uncertainty_values_all_main_prompt = result_df_main_prompt[unc_model_key_main_prompt]
+        # uncertainty_values_all_second_prompt = result_df_second_prompt[unc_model_key_second_prompt]
+        # uncertainty_values_all_main_prompt_filtered = np.array(uncertainty_values_all_main_prompt[uncertainty_values_all_main_prompt<UNC_THERESHOLD])
+        # uncertainty_values_all_second_prompt_filtered = np.array(uncertainty_values_all_second_prompt[uncertainty_values_all_second_prompt<UNC_THERESHOLD])
+        # min_all_main, max_all_main = np.min(uncertainty_values_all_main_prompt_filtered), np.max(uncertainty_values_all_main_prompt_filtered)
+        # min_all_second, max_all_second = np.min(uncertainty_values_all_second_prompt_filtered), np.max(uncertainty_values_all_second_prompt_filtered)
+        # confidence_values_main_prompt = uncertainty_to_confidence_min_max(uncertainty_values_main_prompt_filtered, min_val=min_all_main, max_val=max_all_main)
+        # confidence_values_second_prompt = uncertainty_to_confidence_min_max(uncertainty_values_second_prompt_filtered, min_val=min_all_second, max_val=max_all_second)
+            
+    
+    
+    
+
+
+        # Method 1) Common NLI: based on label
+    # encoded_input = semantic_tokenizer.encode_plus(
+    #     doc_text,
+    #     answer_,
+    #     padding=True,
+    #     truncation=True,
+    #     max_length=512,
+    #     return_tensors="pt",
+    #     truncation_strategy="only_first"
+    # )
+    # encoded_input = {key: val.to(args.device) for key, val in encoded_input.items()}
+    # prediction = semantic_model(**encoded_input).logits
+    # predicted_label = prediction.argmax(dim=1).item()
+
+    # item = (id_, predicted_label)
+    # if predicted_label==0: # entailment
+    #     relation_queries['entailment'].append(item)
+    # elif predicted_label==1: # neutral
+    #     relation_queries['neutral'].append(item)
+    # elif predicted_label==2: # contradiction
+    #     relation_queries['contradiction'].append(item)
+    # else:
+    #     relation_queries['neutral'].append(item)
+    ### === For BART  
+    # if predicted_label==0: # entailment
+    #     relation_queries['contradiction'].append(item)
+    # elif predicted_label==1: # neutral
+    #     relation_queries['neutral'].append(item)
+    # elif predicted_label==2: # contradiction
+    #     relation_queries['entailment'].append(item)
+    # else:
+    #     relation_queries['neutral'].append(item)
+
+
+    # Method 2) MiniCheck
+    # pred_label, predicted_score_, _, _ = minicheck_factual_scorer.score(docs=[doc_text], claims=[answer_])
+    # predicted_score = predicted_score_[0]
+    
+    
+    # Method 3) 
+    # predicted_score_ = hallucination_detector.predict([(doc_text, answer_)])
+    # predicted_score = predicted_score_.item()
+    
+    # item = (id_, predicted_score)
+    # if predicted_score > 0.50: # entailment
+    #     relation_queries['entailment'].append(item)
+    # elif predicted_score < 0.50: # contradiction
+    #     relation_queries['contradiction'].append(item)
+    # else:
+    #     relation_queries['neutral'].append(item)
+
+
+    # Method 4) Long NLI 
+    # predicted_score_ = long_nli_model([dict(text=doc_text, text_pair=answer_)])
+    # item = (id_, predicted_score_[0]['score'])
+    # relation_queries[predicted_score_[0]['label']].append(item)
+    
+    
+    
+    # def compute_answer_equality(sequence_1, sequence_2, threshold=0.5):
+        
+    #     sequence_2_ = {}
+    #     for sample in sequence_2:
+    #         sequence_2_[sample['id']] = sample
+        
+    #     agree_list = []
+    #     non_agree_list = []
+    #     with open(similarity_output_jsonl_file, 'w') as jl_ofile:
+            
+    #         for i, sample in tqdm(enumerate(sequence_1)):
+    #             id_ = sample['id']
+                
+    #             if id_ in sequence_2_:
+    #                 generation_most_likely_seq1 = sample['cleaned_most_likely_generation']
+    #                 generation_most_likely_seq2 = sequence_2_[id_]['cleaned_most_likely_generation']
+                    
+    #                 # print(generation_most_likely_seq1)
+    #                 # print(generation_most_likely_seq2)
+                    
+    #                 similarity = similarity_model.predict([generation_most_likely_seq1, generation_most_likely_seq2])
+                    
+    #                 if similarity > threshold:
+    #                     agree_list.append(id_)
+    #                 else:
+    #                     non_agree_list.append(id_)
+                    
+    #                 # print(similarity)
+    #                 result_item = {
+    #                     'id': id_,
+    #                     'question': sample['question'],
+    #                     'generation_seq_1': generation_most_likely_seq1,
+    #                     'generation_seq_2': generation_most_likely_seq2,
+    #                     'sim_score': float(similarity)
+    #                 }
+    #                 jl_ofile.write(json.dumps(result_item) + '\n')
+                    
+                
+    #             else:
+    #                 print(f"\nQuery {id_} is not common between two sequences !!!")
+            
+    #     return agree_list, non_agree_list
+       
+    # def compute_answer_equality_nli(sequence_1, sequence_2):
+    #     sequence_2_ = {}
+    #     for sample in sequence_2:
+    #         sequence_2_[sample['id']] = sample
+        
+    #     semantically_similar_list = []
+    #     semantically_not_similar_list = []
+        
+    #     ### Similar to semantic similarity
+    #     with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
+    #         for i, sample in tqdm(enumerate(sequence_1)):
+    #             id_ = sample['id']
+    #             question = sample['question']
+    #             is_equal = False
+                
+    #             if id_ in sequence_2_:
+    #                 generation_most_likely_seq1 = sample['cleaned_most_likely_generation']
+    #                 generation_most_likely_seq2 = sequence_2_[id_]['cleaned_most_likely_generation']
+    #                 qa_1 = question + ' ' + generation_most_likely_seq1
+    #                 qa_2 = question + ' ' + generation_most_likely_seq2
+                    
+    #                 input = generation_most_likely_seq1 + ' [SEP] ' + generation_most_likely_seq2
+    #                 encoded_input = semantic_tokenizer.encode(input, padding=True)
+    #                 prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+    #                 predicted_label = torch.argmax(prediction, dim=1)
+
+    #                 reverse_input = generation_most_likely_seq2 + ' [SEP] ' + generation_most_likely_seq1
+    #                 encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+    #                 reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+    #                 reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+                    
+    #                 if 0 in predicted_label or 0 in reverse_predicted_label:
+    #                     semantically_not_similar_list.append(id_)
+    #                     is_equal = False
+    #                 else:
+    #                     semantically_similar_list.append(id_)
+    #                     is_equal = True
+
+    #                 result_item = {
+    #                     'id': id_,
+    #                     'question': sample['question'],
+    #                     'answers': sample['answers'],
+    #                     'generation_seq_1': generation_most_likely_seq1,
+    #                     'generation_seq_2': generation_most_likely_seq2,
+    #                     'is_equal': is_equal
+    #                 }
+    #                 jl_ofile.write(json.dumps(result_item) + '\n')
+
+    #             else:
+    #                 print(f"\nQuery {id_} is not common between two sequences !!!")
+
+    #     return semantically_similar_list, semantically_not_similar_list
+
+    
+    
+    
+    # (2), (3), (4) -> Src: https://arxiv.org/pdf/2410.03461
+    # 2) MiniCheck (EMNLP24)
+    # - MiniCheck: https://huggingface.co/lytang/MiniCheck-Flan-T5-Large
+    # - pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
+    # minicheck_factual_scorer = MiniCheck(model_name='flan-t5-large', cache_dir='./ckpts')
+    
+    # 2) Hallucination Detector
+    # - Vectara: https://huggingface.co/vectara/hallucination_evaluation_model
+    # - It needs updated version of transformer: pip install --upgrade transformers
+    # hallucination_detector = AutoModelForSequenceClassification.from_pretrained(
+    #     'vectara/hallucination_evaluation_model', trust_remote_code=True)
+
+    # 3) Long NLI: 
+    # - Tasksource: https://huggingface.co/tasksource/deberta-base-long-nli
+    # long_nli_model = pipeline("text-classification", model="tasksource/deberta-base-long-nli", device=args.device)
+
+    
+    
+    
+    # def in_doc_existence(sequences, ids):
+    #     samples = [item for item in sequences if item['id'] in ids]
+        
+    #     doc_exist, doc_not_exist = [], []
+    #     for idx, sample in enumerate(samples):
+    #         answer = sample['cleaned_most_likely_generation']
+    #         prompt_text = sample['prompt_text']
+    #         doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
+            
+    #         # def is_answer_in_doc(answer, doc, threshold=0.8):
+    #         #     return SequenceMatcher(None, answer, doc).ratio() > threshold
+            
+    #         # if answer in doc_text:
+    #         #     print('1')
+    #         if answer.lower() in doc_text.lower():
+    #             doc_exist.append(sample['id'])
+    #         else:
+    #             doc_not_exist.append(sample['id'])
+    #         # if re.search(r'\b' + re.escape(answer) + r'\b', doc_text, re.IGNORECASE):
+    #         #     print('3')
+    #         # if is_answer_in_doc(answer, doc_text):
+    #         #     print('4')
+    #         # else:
+    #         #     print('5')
+    #     return doc_exist, doc_not_exist
     
     
     

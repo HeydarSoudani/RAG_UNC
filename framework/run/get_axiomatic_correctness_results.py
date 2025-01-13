@@ -6,20 +6,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import json
 import torch
-import random
 import pickle
-import sklearn
 import argparse
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from scipy.stats import pearsonr, spearmanr
-from sentence_transformers.cross_encoder import CrossEncoder
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from utils.significant_testing import wilcoxon_test
 from utils.utils import set_seed, uncertainty_to_confidence_min_max
-from metrics.calibration import ECE_estimate
 
 UNC_THERESHOLD = 1000
 
@@ -53,14 +47,7 @@ def get_axiomatic_results(args):
         sequences_main = pickle.load(infile)
     with open(sequence_input_secondry, 'rb') as infile:
         sequences_secondry = pickle.load(infile)
-   
-   
-    # === Load semantic model ===================
-    semantic_model_name = "microsoft/deberta-large-mnli"
-    semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
-    semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
-    semantic_model.eval()
-    
+        
     
     # === Functions =============================
     keys_mapping = {
@@ -163,39 +150,9 @@ def get_axiomatic_results(args):
         likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
         
         # 
-        # groundedness_df = pd.DataFrame(groundedness_results)
-
-        # 
         result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id') # .merge(groundedness_df, on='id')
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
-    
-    def get_correctness(results):
-        correctness_results = {}
-        
-        if args.accuracy_metric in ['bem_score', 'gpt_score', 'exact_match']:
-            correctness_bin = (results[args.accuracy_metric] > args.roc_auc_threshold).astype('int') 
-        elif args.accuracy_metric == 'bert_score':
-            correctness_bin = (results[args.accuracy_metric].apply(lambda x: x['F1']) > args.roc_auc_threshold).astype('int') 
-        elif args.accuracy_metric == 'rouge_score':
-            correctness_bin = (results[args.accuracy_metric].apply(lambda x: x['rougeL']) > args.roc_auc_threshold).astype('int') 
-        correctness_results['accuracy'] = correctness_bin.mean()
-        
-        # non-binarized accuracy
-        correctness_results['exact_match_mean'] = results['exact_match'].mean()
-        correctness_results['bem_score_mean'] = results['bem_score'].mean()
-        correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
-        # correctness_results['rougeL_score_mean'] = results['rouge_score'].apply(lambda x: x['rougeL']).mean()
-        if args.accuracy_metric in ['bem_score', 'gpt_score']:
-            one_minus_correctness = 1 - results[args.accuracy_metric]
-        elif args.accuracy_metric == 'rouge_score':
-            one_minus_correctness = 1 - results[args.accuracy_metric].apply(lambda x: x['rougeL'])
-        elif args.accuracy_metric == 'bert_score':
-            one_minus_correctness = 1 - results[args.accuracy_metric].apply(lambda x: x['F1'])
-        elif args.accuracy_metric == 'exact_match':
-            one_minus_correctness = 1 - results[args.accuracy_metric].astype('int') 
-        
-        return correctness_results, correctness_bin, one_minus_correctness
     
     def compute_answer_equality_em(sequence_1, sequence_2):
         sequence_2_ = {}
@@ -245,144 +202,7 @@ def get_axiomatic_results(args):
 
         return semantically_similar_list, semantically_not_similar_list
 
-    def get_entail_contradict_relations_nli(axioms, queries_list):
-        # Src: https://huggingface.co/vectara/hallucination_evaluation_model
-        # Input: a list of pairs of (premise, hypothesis)
-        # It returns a score between 0 and 1 for each pair where
-        # 0 means that the hypothesis is not evidenced at all by the premise and
-        # 1 means the hypothesis is fully supported by the premise.
-        
-        if axioms == "12":
-            results_file = axioms12_output_jsonl_file
-            sequences = sequences_main
-        elif axioms == "4":
-            results_file = axiom4_output_jsonl_file
-            sequences = sequences_main
-        elif axioms == "5":
-            results_file = axiom5_output_jsonl_file
-            sequences = sequences_secondry
-            
-            sequences_main_ = {}
-            for item in sequences_main:
-                sequences_main_[item['id']] = item
-            
-        else:
-            print(f"No valid axiom number !!!")
-        
-        if os.path.isfile(results_file):
-            print(f"{results_file} exists.")
-            with open(results_file, 'r') as file:
-                relation_queries = json.load(file) 
-        else:
-            relation_queries = {
-                'entailment': [],
-                'neutral': [],
-                'contradiction': []
-            }
-        
-            with torch.no_grad():
-                for idx, sample in tqdm(enumerate(sequences)):
-                    id_ = sample['id']
-                    
-                    if id_ in queries_list:
-                        
-                        # Get and prepare variables
-                        question = sample['question']
-                        generated_text_most_likely = sample['most_likely_generation']
-                        
-                        if axioms in ["12", "4"]:
-                            prompt_text = sample['prompt_text']
-                        elif axioms == "5":
-                            prompt_text = sequences_main_[id_]['prompt_text']
-                        
-                        doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
-                        answer_ = f"{question} {generated_text_most_likely}"
-
-                        
-                        # Method 1) Common NLI: based on label
-                        # encoded_input = semantic_tokenizer.encode_plus(
-                        #     doc_text,
-                        #     answer_,
-                        #     padding=True,
-                        #     truncation=True,
-                        #     max_length=512,
-                        #     return_tensors="pt",
-                        #     truncation_strategy="only_first"
-                        # )
-                        # encoded_input = {key: val.to(args.device) for key, val in encoded_input.items()}
-                        # prediction = semantic_model(**encoded_input).logits
-                        # predicted_label = prediction.argmax(dim=1).item()
-
-                        # item = (id_, predicted_label)
-                        # if predicted_label==0: # entailment
-                        #     relation_queries['entailment'].append(item)
-                        # elif predicted_label==1: # neutral
-                        #     relation_queries['neutral'].append(item)
-                        # elif predicted_label==2: # contradiction
-                        #     relation_queries['contradiction'].append(item)
-                        # else:
-                        #     relation_queries['neutral'].append(item)
-                        ### === For BART  
-                        # if predicted_label==0: # entailment
-                        #     relation_queries['contradiction'].append(item)
-                        # elif predicted_label==1: # neutral
-                        #     relation_queries['neutral'].append(item)
-                        # elif predicted_label==2: # contradiction
-                        #     relation_queries['entailment'].append(item)
-                        # else:
-                        #     relation_queries['neutral'].append(item)
-                    
-            
-                        # Method 2) MiniCheck
-                        # pred_label, predicted_score_, _, _ = minicheck_factual_scorer.score(docs=[doc_text], claims=[answer_])
-                        # predicted_score = predicted_score_[0]
-                        
-                        
-                        # Method 3) 
-                        # predicted_score_ = hallucination_detector.predict([(doc_text, answer_)])
-                        # predicted_score = predicted_score_.item()
-                        
-                        # item = (id_, predicted_score)
-                        # if predicted_score > 0.50: # entailment
-                        #     relation_queries['entailment'].append(item)
-                        # elif predicted_score < 0.50: # contradiction
-                        #     relation_queries['contradiction'].append(item)
-                        # else:
-                        #     relation_queries['neutral'].append(item)
-            
-            
-                        # Method 4) Long NLI 
-                        # predicted_score_ = long_nli_model([dict(text=doc_text, text_pair=answer_)])
-                        # item = (id_, predicted_score_[0]['score'])
-                        # relation_queries[predicted_score_[0]['label']].append(item)
-                        
-                        
-                        # Method 5) Common NLI: Similar to semantic semilarity
-                        input = doc_text + ' [SEP] ' + answer_
-                        encoded_input = semantic_tokenizer.encode(input, padding=True)
-                        prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
-                        predicted_label = torch.argmax(prediction, dim=1)
-                        
-                        reverse_input = answer_ + ' [SEP] ' + doc_text
-                        encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
-                        reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
-                        reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
-                        
-                        item = (id_, torch.softmax(prediction, dim=1).tolist()[0], torch.softmax(reverse_prediction, dim=1).tolist()[0])
-                        if 0 in predicted_label or 0 in reverse_predicted_label:
-                            relation_queries['contradiction'].append(item)
-                        else:
-                            relation_queries['entailment'].append(item)
-                        
-            # Write to file 
-            with open(results_file, 'w') as file:
-                json.dump(relation_queries, file, indent=4)
-        
-        return relation_queries
-    
     def run_axiomatic_metrics(prompt_order):
-        
-        print()
         
         ### === Step1: Check if answer1 is equal to answer2 ===
         def get_output_equality():
@@ -407,9 +227,8 @@ def get_axiomatic_results(args):
         
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
-
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['PE', ]: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
@@ -516,7 +335,6 @@ def get_axiomatic_results(args):
             print('\n')
             
 
-
     # ======
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
@@ -526,9 +344,6 @@ def get_axiomatic_results(args):
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
         
-        axioms12_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axioms12_output.json'
-        axiom4_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom4_output.json'
-        axiom5_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_{args.temperature}_axiom5_output.json'
         answers_equality_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
         answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
         os.makedirs(answers_equality_output_dir, exist_ok=True)
@@ -547,8 +362,8 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
-        'only_q', 'q_positive', 'q_negative', 'q_negative',
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
@@ -596,7 +411,7 @@ if __name__ == "__main__":
     set_seed(args.seed)
     get_axiomatic_results(args)
     
-    # python framework/run/get_axiomatic_results_v3.py
+    # python framework/run/get_axiomatic_correctness_results.py
     
     
     
