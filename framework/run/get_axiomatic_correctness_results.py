@@ -227,13 +227,13 @@ def get_axiomatic_results(args):
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
-            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
         
             all_axioms_ids = []
-            for axiom_num in []: # '1', '2', '4', '5'
+            for axiom_num in ['1', '2', '4', '5']: # '1', '2', '4', '5'
                 print(f"== Axiom: {axiom_num} ===")
                 
                 # Get samples
@@ -331,31 +331,32 @@ def get_axiomatic_results(args):
             stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
             print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
             print(f"Is it significant? {is_significant}")
-            print('\n')
+            print('\n\n')
+            
             
             # Axiom 3
-            print(f"== Axiom: 3 ===")
-            selected_list_ = answer_equal_list
-            selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-            selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
-            print(f'# Samples: {len(selected_main_prompt_df)}')
-            print(f'# Samples: {len(selected_second_prompt_df)}')
+            # print(f"== Axiom: 3 ===")
+            # selected_list_ = answer_equal_list
+            # selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+            # selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+            # print(f'# Samples: {len(selected_main_prompt_df)}')
+            # print(f'# Samples: {len(selected_second_prompt_df)}')
             
-            uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
-            uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
-            uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
-            uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
-            stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
-            print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-            print(f"Is it significant? {is_significant}")
-            print('\n')
+            # uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
+            # uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
+            # uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+            # uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+            # stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+            # print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+            # print(f"Is it significant? {is_significant}")
+            # print('\n')
             
 
     # ======
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
         
-    for prompt_order in ['main']: # 'third', 'second', 'forth'
+    for prompt_order in ['second']: # 'third', 'second', 'forth'
         print(f"=== {prompt_order} ====================================")
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
@@ -371,14 +372,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold','trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

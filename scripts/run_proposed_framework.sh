@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
-#SBATCH --time=8:00:00
+#SBATCH --time=5:00:00
 #SBATCH --output=script_logging/slurm_%A.out
 
 module load 2022
@@ -16,39 +16,29 @@ module load Python/3.10.4-GCCcore-11.3.0
 # python -m pyserini.index -collection JsonCollection -generator DefaultLuceneDocumentGenerator -threads 20 -input "datasets/single_hop/corpus_hf" -index "datasets/single_hop/corpus_hf/bm25_index" -storePositions -storeDocvectors -storeRaw
 # srun python $HOME/RAG_UNC/processed_datasets/_processing_dataset.py
 # srun python $HOME/RAG_UNC/processed_datasets/_corpus_preparation.py
-
-# model="meta-llama/Llama-2-7b-chat-hf"
-# dataset="nqgold"
-# subsec="test"
-# main_prompt_format="q_positive"
-# second_prompt_format="only_q"
-# fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
-# run_id="run_0"
-# generation_type="normal"
-# alpha_generation=0.5
-# alpha_probability=0.5
-
-# model="meta-llama/Llama-2-7b-chat-hf"
-# dataset="nqswap"
-# subsec="test"
-# main_prompt_format="only_q"
-# second_prompt_format="q_conflict"
-# fraction_of_data_to_use=0.5    # nqgold 0.173 | trivia 0.057 | popqa 0.035
-# run_id="run_0"
-# generation_type="normal"
-# alpha_generation=0.5
-# alpha_probability=0.5
+# srun python processed_datasets/_contriever_retrieval_model.py
 
 model="meta-llama/Llama-2-7b-chat-hf"
-dataset="trivia"
-subsec="dev"
-main_prompt_format="q_positive"
-second_prompt_format="only_q"
-fraction_of_data_to_use=0.340    # nqgold 0.173 | trivia 0.057,  | popqa 0.035
+dataset="nqgold"
+subsec="test"
+main_prompt_format="only_q"
+second_prompt_format="rerank_retriever_top1"
+fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
 run_id="run_0"
 generation_type="normal"
 alpha_generation=0.5
 alpha_probability=0.5
+
+# model="meta-llama/Llama-2-7b-chat-hf"
+# dataset="trivia"
+# subsec="dev"
+# main_prompt_format="q_positive"
+# second_prompt_format="only_q"
+# fraction_of_data_to_use=0.340    # nqgold 0.173 | trivia 0.057,  | popqa 0.035
+# run_id="run_0"
+# generation_type="normal"
+# alpha_generation=0.5
+# alpha_probability=0.5
 
 # model="meta-llama/Llama-2-7b-chat-hf"
 # dataset="popqa"
@@ -104,3 +94,20 @@ srun python $HOME/RAG_UNC/framework/run/run_framework.py \
 # mode:
     # 'seperated', 'combined'
 
+
+
+
+
+
+
+
+# model="meta-llama/Llama-2-7b-chat-hf"
+# dataset="nqswap"
+# subsec="test"
+# main_prompt_format="only_q"
+# second_prompt_format="q_conflict"
+# fraction_of_data_to_use=0.5    # nqgold 0.173 | trivia 0.057 | popqa 0.035
+# run_id="run_0"
+# generation_type="normal"
+# alpha_generation=0.5
+# alpha_probability=0.5
