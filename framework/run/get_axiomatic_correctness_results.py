@@ -227,7 +227,7 @@ def get_axiomatic_results(args):
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
@@ -371,8 +371,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'nqswap', 'trivia', 'popqa',
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+        'nqgold','trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',

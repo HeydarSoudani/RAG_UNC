@@ -21,7 +21,8 @@ from metrics.calibration import ECE_estimate
 
 UNC_THERESHOLD = 1000
 
-def get_calibration_results(args):
+
+def get_calibration_mix_results(args):
     print("\n--- Step 6: Get Calibration Results ...")
     print(f"""
         Model name:   {args.model}
@@ -179,168 +180,13 @@ def get_calibration_results(args):
         
         return correctness_results, correctness_bin, one_minus_correctness
 
-    def plot_roc_correctness_vs_uncertainty(correctness, uncertainty, prefix):
-        
-        # Compute False Positive Rate (FPR), True Positive Rate (TPR), and thresholds
-        fpr, tpr, thresholds = sklearn.metrics.roc_curve(1 - correctness, uncertainty)
 
-        # Calculate AUROC
-        auroc = sklearn.metrics.roc_auc_score(1 - correctness, uncertainty)
-
-        # Plot the ROC Curve
-        plt.figure(figsize=(8, 6))
-        plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {auroc:.2f})", linewidth=2)
-        plt.plot([0, 1], [0, 1], 'k--', label="Random Guessing")  # Dashed diagonal line for random guessing
-        plt.title("Receiver Operating Characteristic (ROC) Curve")
-        plt.xlabel("False Positive Rate (FPR)")
-        plt.ylabel("True Positive Rate (TPR)")
-        plt.legend(loc="lower right")
-        plt.grid(alpha=0.3)
-        plt.savefig(f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/ROC_correctness_vs_uncertainty_{prefix}.png')
-
-    def plot_correctness_vs_confidence(correctness, confidence, ece_text, prefix, num_bins=10):
-        bin_edges = np.linspace(0, 1, num_bins + 1)
-        bin_means = []  # Store mean correctness per bin
-        bin_centers = []  # Store bin centers for plotting
-        for i in range(num_bins):
-            # Define bin range
-            bin_lower = bin_edges[i]
-            bin_upper = bin_edges[i + 1]
-            in_bin = (confidence >= bin_lower) & (confidence < bin_upper)
-            
-            indices_in_bin = np.where(in_bin)[0]
-            # print(indices_in_bin)
-
-            # Calculate mean correctness in the bin
-            if np.any(in_bin):
-                bin_mean_correctness = correctness[in_bin].mean()
-                bin_means.append(bin_mean_correctness)
-            else:
-                # Append NaN or zero if no samples in bin
-                bin_means.append(0)
-                
-            bin_centers.append((bin_lower + bin_upper) / 2)
-
-        # Plot the binned mean correctness against confidence
-        plt.figure(figsize=(8, 6))
-        plt.bar(bin_centers, bin_means, width=1/num_bins, color='b', alpha=0.7, edgecolor='black')
-        plt.plot([0, 1], [0, 1], 'g--', label="Perfect Calibration")
-        plt.text(0.05, 0.95, f'ECE: {round(ece_text, 4)}', fontsize=14, color='red', ha='left', va='top', transform=plt.gca().transAxes,
-         bbox=dict(boxstyle="round", facecolor="lightgrey", edgecolor="lightgrey"))
-        
-        plt.xlabel('Confidence')
-        plt.ylabel('Correctness')
-        plt.title(f'Correctness vs Confidence')
-        plt.ylim(0, 1)
-        plt.xlim(0, 1)
-        plt.xticks(np.linspace(0.1, 1.0, 10))  # Set x-ticks as specified
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-        plt.tight_layout()
-        plt.savefig(f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results/ECE_correctness_vs_confidence_{prefix}.png')
-    
-    def plot_correctness_vs_uncertainty(correctness, uncertainty, metric_text, uncertainty_model, prompt_order, num_bins=10):
-        max_uncertainty_val = 20
-        
-        bin_edges = np.linspace(0, max_uncertainty_val, num_bins + 1)
-        bin_means = []  # Store mean correctness per bin
-        bin_centers = []  # Store bin centers for plotting
-        for i in range(num_bins):
-            bin_lower = bin_edges[i]
-            bin_upper = bin_edges[i + 1]
-            in_bin = (uncertainty >= bin_lower) & (uncertainty < bin_upper)
-
-            # Calculate mean correctness in the bin
-            if np.any(in_bin):
-                bin_mean_correctness = correctness[in_bin].mean()
-                bin_means.append(bin_mean_correctness)
-            else:
-                # Append NaN or zero if no samples in bin
-                bin_means.append(0)
-                
-            bin_centers.append((bin_lower + bin_upper) / 2)
-
-        # Plot the binned mean correctness against confidence
-        plt.figure(figsize=(8, 6))
-        plt.bar(bin_centers, bin_means, width=max_uncertainty_val/num_bins, color='salmon', alpha=0.7, edgecolor='black')
-        plt.plot([0, max_uncertainty_val], [1, 0], 'g--', label="Perfect Calibration")
-        plt.text(0.55, 0.95, metric_text, fontsize=18, color='red', ha='left', va='top', transform=plt.gca().transAxes,
-         bbox=dict(boxstyle="round", facecolor="lightgrey", edgecolor="lightgrey"))
-        
-        plt.xlabel('Uncertainty')
-        plt.ylabel('Correctness')
-        plt.title(f'Correctness vs Uncertainty')
-        plt.ylim(0, 1)
-        plt.xlim(0, max_uncertainty_val)
-        plt.xticks(range(0, max_uncertainty_val+1, int(max_uncertainty_val/10)))  # Set x-ticks as specified
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-        plt.tight_layout()
-        plt.savefig(f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/ECE_correctness_vs_uncertainty_{uncertainty_model}.png')
-    
-    def plot_correctness_vs_uncertainty_for_axioms(correctness, uncertainty, axiom_correctness, axiom_uncertainty, metric_text, prefix, num_bins=10):
-        max_uncertainty_val = 20
-        bin_edges = np.linspace(0, max_uncertainty_val, num_bins + 1)
-        bin_means = []
-        bin_means_axiom = []
-        bin_centers = []
-        
-        for i in range(num_bins):
-            
-            bin_lower = bin_edges[i]
-            bin_upper = bin_edges[i + 1]
-            bin_centers.append((bin_lower + bin_upper) / 2)
-            in_bin = (uncertainty >= bin_lower) & (uncertainty < bin_upper)
-            in_bin_axiom = (axiom_uncertainty >= bin_lower) & (axiom_uncertainty < bin_upper)
-            
-            if np.any(in_bin):
-                bin_mean_correctness = correctness[in_bin].mean()
-                bin_means.append(bin_mean_correctness)
-            else:
-                bin_means.append(0)
-        
-            if np.any(in_bin_axiom):
-                bin_mean_correctness_axiom = sum(axiom_correctness[in_bin_axiom]) / len(correctness[in_bin])
-                bin_means_axiom.append(bin_mean_correctness_axiom)
-            else:
-                bin_means_axiom.append(0)
-        
-        plt.figure(figsize=(8, 6))
-        plt.bar(bin_centers, bin_means, width=max_uncertainty_val/num_bins, color='salmon', alpha=0.7, edgecolor='black')
-        plt.bar(bin_centers, bin_means_axiom, width=max_uncertainty_val/num_bins, color='yellowgreen', alpha=0.7, edgecolor='black')
-        plt.plot([0, max_uncertainty_val], [1, 0], 'g--', label="Perfect Calibration")
-        plt.text(0.65, 0.95, metric_text, fontsize=18, color='red', ha='left', va='top', transform=plt.gca().transAxes,
-         bbox=dict(boxstyle="round", facecolor="lightgrey", edgecolor="lightgrey"))
-        
-        plt.xlabel('Uncertainty')
-        plt.ylabel('Correctness')
-        plt.title(f'Correctness vs Uncertainty')
-        plt.ylim(0, 1)
-        plt.xlim(0, max_uncertainty_val)
-        plt.xticks(range(0, max_uncertainty_val+1))
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-        plt.tight_layout()
-        plt.savefig(f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results/ECE_correctness_vs_uncertainty_{prefix}.png')
-    
-    def plot_correctness_vs_uncertainties_indication_diagram(correctness, uncertainty, rce_text, prefix, num_bins=10):
-        fig, ax = plt.subplots(figsize=(10, 10))
-        ax = indication_diagram(correctness=correctness, uncertainties=uncertainty, fig=fig, ax=ax, num_bins=num_bins)
-        ax.legend(loc='upper right', frameon=False, fontsize=18)
-        ax.set_xlabel(f'Uncertainty', fontsize=18)
-        ax.set_ylabel('Correctness', fontsize=18)
-        
-        plt.text(
-            0.8, 0.8, f'RCE: {round(rce_text, 4)}',
-            fontsize=16, color='red', ha='left', va='top', transform=plt.gca().transAxes,
-            bbox=dict(boxstyle="round", facecolor="lightgrey", edgecolor="lightgrey")
-        )
-        plt.grid()
-        plt.tight_layout()
-        plt.savefig(f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results/RCE_correctness_vs_uncertainty_{prefix}.png')
-    
     def run_calibration_metrics(prompt_order="main"):
         result_dict = {}
+        combined_df = pd.concat([result_df_main_prompt, result_df_second_prompt], ignore_index=True)
         
         # Get correctness
-        correctness_results, correctness_bin, one_minus_correctness = get_correctness(result_df_main_prompt) 
+        correctness_results, correctness_bin, one_minus_correctness = get_correctness(combined_df) 
         correctness = 1 - np.array(one_minus_correctness)
         result_dict['correctness'] = correctness_results
         
@@ -348,14 +194,12 @@ def get_calibration_results(args):
         for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: #,  'EigV', 'Ecc', 'Deg'
             result_dict[uncertainty_model]= {}
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
-            uncertainty_values = result_df_main_prompt[unc_model_key_main_prompt]
+            uncertainty_values = combined_df[unc_model_key_main_prompt]
             uncertainty_values_filtered = uncertainty_values[uncertainty_values <UNC_THERESHOLD]
-            # print(uncertainty_values.nsmallest(10))
-            # print(uncertainty_values.nlargest(10))
             
             result_dict[uncertainty_model]["Unc._value"] = uncertainty_values_filtered.mean()
             result_dict[uncertainty_model]["AUROC (Unc.)"] = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values)
-            
+        
             confidence_values = uncertainty_to_confidence_min_max(uncertainty_values_filtered)
             result_dict[uncertainty_model]['Conf._normalized'] = confidence_values.mean()
             result_dict[uncertainty_model]["AUROC (Conf.)"] = sklearn.metrics.roc_auc_score(correctness_bin[uncertainty_values <UNC_THERESHOLD], confidence_values)
@@ -367,43 +211,7 @@ def get_calibration_results(args):
             result_dict[uncertainty_model]['spearman_corr'] = ln_predictive_entropy_spearman_corr
             result_dict[uncertainty_model]['spearman_p_value'] = ln_predictive_entropy_spearman_p_value
             
-            # For sig_test
-            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
-            common_ids = result_df_main_prompt[result_df_main_prompt['id'].isin(result_df_second_prompt['id'])]['id']
-            result_df_main_prompt_common = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
-            result_df_second_prompt_common = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
-            uncertainty_values_main_prompt = result_df_main_prompt_common[unc_model_key_main_prompt]
-            uncertainty_values_second_prompt = result_df_second_prompt_common[unc_model_key_second_prompt]
-            
-            stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
-            result_dict[uncertainty_model]["wilcoxon_test"] = is_significant
-            
-            # result_dict[uncertainty_model]['ECE'] = ece_estimate(correctness, confidence_values)
-            # result_dict[uncertainty_model]['RCE'] = plugin_RCE_est(correctness, uncertainty_values)
-            
-            # plot_roc_correctness_vs_uncertainty(correctness_bin, uncertainty_values, prefix=f"{uncertainty_model}_{prompt_order}_prompt")
-            
-            # plot_correctness_vs_uncertainty(
-            #     correctness, uncertainty_values,
-            #     f"AUROC: {round(result_dict[uncertainty_model]['AUROC'], 4)}\nSpearman: {round(result_dict[uncertainty_model]['spearman_corr'], 4)}±{round(result_dict[uncertainty_model]['spearman_p_value'], 4)}",
-            #     # prefix=f"{uncertainty_model}_{prompt_order}_prompt"
-            #     uncertainty_model, prompt_order, num_bins=40
-            # )
-            # plot_correctness_vs_confidence(
-            #     correctness, confidence_values,
-            #     result_dict[uncertainty_model]['ECE'], prefix=uncertainty_model,
-            #     num_bins=40
-            # )
-            # plot_correctness_vs_uncertainties_indication_diagram(
-            #     correctness, uncertainty_values,
-            #     result_dict[uncertainty_model]['RCE'], prefix=uncertainty_model,
-            #     num_bins=30
-            # )
-            
-        ### === Save the calibration result ============
-        # print(result_dict)
-        # print('\n')
-        
+        # Save the calibration result
         def convert_to_serializable(obj):
             if isinstance(obj, np.float32):
                 return float(obj)
@@ -415,28 +223,30 @@ def get_calibration_results(args):
 
         with open(calibration_output_file, 'w') as file:
             json.dump(result_dict, file, indent=4, default=convert_to_serializable)
-        
+
+    
     # === Main loop ==============================
-    for prompt_order in ['main', 'second']: #'third', 'forth', 'fifth'
-        calibration_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/{model}_calibration_results.jsonl'
+    for prompt_order in ['main']: #'second', 'third', 'forth', 'fifth'
+        calibration_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/{model}_calibration_mix_results.jsonl'
         calibration_output_dir = os.path.dirname(calibration_output_file)
         os.makedirs(calibration_output_dir, exist_ok=True)
         
         run_calibration_metrics(prompt_order)
     
-
-
+    
+    
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['dev', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -486,7 +296,9 @@ if __name__ == "__main__":
         args.second_prompt_format == 'only_q'
     
     set_seed(args.seed)
-    get_calibration_results(args)
+    get_calibration_mix_results(args)
     
-    # python framework/run/get_calibration_results.py
+    # python framework/run/get_calibration_mix_results.py
     
+    
+
