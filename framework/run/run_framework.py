@@ -19,7 +19,7 @@ from get_uncertainty_sar import get_uncertainty_sar
 
 from get_correctness import get_correctness
 from get_calibration_results import get_calibration_results
-from framework.run.get_axiomatic_nli_results import get_axiomatic_results
+from get_axiomatic_nli_results import get_axiomatic_results
 
 from utils.utils import set_seed
 
@@ -93,16 +93,16 @@ if __name__ == "__main__":
     # ## === Phase 2: Uncertainty computation
     # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
     # # get_groundedness(args)
-    # get_probability(args)
-    # get_likelihoods_mars(args)
+    get_probability(args)
+    get_likelihoods_mars(args)
     
-    # get_uncertainty_mars(args)
+    get_uncertainty_mars(args)
     # get_uncertainty_bb(args)
     # # TODO: sar_uncertainty
     # # get_uncertainty_sar(args)
     
     ## === Phase 3: correctness and results
-    get_correctness(args)
+    # get_correctness(args)
     get_calibration_results(args)
     # get_axiomatic_results(args)
     

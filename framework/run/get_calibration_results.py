@@ -33,6 +33,7 @@ def get_calibration_results(args):
     """.replace('        ', ''))
     
     # === Define output files ===================
+    # archive_500samples
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}'
@@ -83,8 +84,8 @@ def get_calibration_results(args):
             'average_predictive_entropy_importance_max_main_prompt', 'predictive_entropy_over_concepts_importance_max_main_prompt',
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
-            # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
-            # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
+            'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             # 'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
             # 'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
             # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
@@ -109,7 +110,6 @@ def get_calibration_results(args):
         result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
-    
     
     # === Define functions =======================
     keys_mapping = {
@@ -417,7 +417,7 @@ def get_calibration_results(args):
             json.dump(result_dict, file, indent=4, default=convert_to_serializable)
         
     # === Main loop ==============================
-    for prompt_order in ['main', 'second']: #'third', 'forth', 'fifth'
+    for prompt_order in ['main', 'second', 'third']: #'third', 'forth', 'fifth'
         calibration_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/{model}_calibration_results.jsonl'
         calibration_output_dir = os.path.dirname(calibration_output_file)
         os.makedirs(calibration_output_dir, exist_ok=True)
@@ -429,19 +429,19 @@ def get_calibration_results(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['dev', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

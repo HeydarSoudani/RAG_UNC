@@ -412,7 +412,7 @@ def get_axiomatic_results(args):
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['SE', 'PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
@@ -471,7 +471,8 @@ def get_axiomatic_results(args):
                 print(f"Accuracy: {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
                 print(f"AUROC:    {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
                 print(f"Spearman: {round(spearman_second_prompt_corr, 3)}±{round(spearman_second_prompt_p_value, 3)} -> {round(spearman_main_prompt_corr, 3)}±{round(spearman_main_prompt_p_value, 3)}")
-
+            print('\n\n')
+        
     # ======
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
@@ -501,7 +502,7 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
