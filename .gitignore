@@ -126,5 +126,6 @@ pretrained_models/
 script_logging/
 models--meta-llama--Llama-2-7b-chat-hf/
 
+framework/metrics/vocab.txt
 framework/metrics/bert-tensorflow2-answer-equivalence-bem-v1/
 framework/run_output/

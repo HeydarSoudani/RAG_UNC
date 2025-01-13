@@ -53,7 +53,8 @@ class BertScore():
 
 class BemScore():
     def __init__(self):
-        VOCAB_PATH = 'baselines/MARS/vocab.txt'  #@param {type:"string"}
+        # Src: https://huggingface.co/google/bert_uncased_L-12_H-768_A-12/tree/main
+        VOCAB_PATH = 'framework/metrics/vocab.txt'  #@param {type:"string"}
         tf.config.set_visible_devices([], 'GPU')
         vocab_table = tf.lookup.StaticVocabularyTable(
             tf.lookup.TextFileInitializer(

@@ -4,19 +4,20 @@ from scipy.stats import wilcoxon
 import json
 
 
-def wilcoxon_test(sequence1, sequence2):
+def wilcoxon_test(sequence1, sequence2, printing=False):
     is_significant  = False
     stat, p_value = wilcoxon(sequence1, sequence2)
     
-    # Output the test statistic and p-value
-    print(f"Wilcoxon test statistic: {stat}, p-value: {p_value}")
+    if p_value < 0.01:
+        is_significant = True
     
     # Interpretation
-    if p_value < 0.01:
-        print("The difference in performance is statistically significant.")
-        is_significant = True
-    else:
-        print("The difference in performance is not statistically significant.")
+    if printing:
+        print(f"Wilcoxon test statistic: {stat}, p-value: {p_value}")
+        if p_value < 0.01:
+            print("The difference in performance is statistically significant.")
+        else:
+            print("The difference in performance is not statistically significant.")
     
     return stat, p_value, is_significant
     
