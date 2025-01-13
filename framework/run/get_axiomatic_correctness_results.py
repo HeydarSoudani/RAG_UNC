@@ -134,8 +134,8 @@ def get_axiomatic_results(args):
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
             'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
             'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
-            'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
-            'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
+            # 'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
+            # 'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
             # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
             # 'average_predictive_entropy_importance_max_fifth_prompt', 'predictive_entropy_over_concepts_importance_max_fifth_prompt',
         )
@@ -161,7 +161,7 @@ def get_axiomatic_results(args):
         
         semantically_similar_list = []
         semantically_not_similar_list = []
-        with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
+        with open(answers_equality_output_file, 'w') as jl_ofile:
             for i, sample in tqdm(enumerate(sequence_1)):
                 id_ = sample['id']
                 is_equal = False
@@ -206,10 +206,10 @@ def get_axiomatic_results(args):
         
         ### === Step1: Check if answer1 is equal to answer2 ===
         def get_output_equality():
-            if os.path.isfile(answers_equality_output_jsonl_file):
-                print(f"{answers_equality_output_jsonl_file} exists.")
+            if os.path.isfile(answers_equality_output_file):
+                print(f"{answers_equality_output_file} exists.")
                 answer_equal_list, answer_not_equal_list = [], []
-                with open(answers_equality_output_jsonl_file, 'r') as file:
+                with open(answers_equality_output_file, 'r') as file:
                     for line in file:
                         if line.strip():
                             item = json.loads(line)
@@ -224,17 +224,16 @@ def get_axiomatic_results(args):
             print(f"Answer equal: {len(answer_equal_list)}")
             print(f"Answer not equal: {len(answer_not_equal_list)}")
             return answer_equal_list, answer_not_equal_list
-        
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
         
             all_axioms_ids = []
-            for axiom_num in ['1', '2', '4', '5']:
+            for axiom_num in []: # '1', '2', '4', '5'
                 print(f"== Axiom: {axiom_num} ===")
                 
                 # Get samples
@@ -317,7 +316,7 @@ def get_axiomatic_results(args):
            
                 print('\n')
             
-            # For ids not in axioms
+            # Others: for ids not in the axioms
             print(f"= Not in Axioms =======")
             result_df_main_prompt_not_in_axioms = result_df_main_prompt[~result_df_main_prompt['id'].isin(all_axioms_ids)]
             result_df_second_prompt_not_in_axioms = result_df_second_prompt[(result_df_second_prompt['id'].isin(result_df_main_prompt_not_in_axioms['id'].tolist()))]
@@ -327,6 +326,23 @@ def get_axiomatic_results(args):
             
             uncertainty_values_main_prompt =  result_df_main_prompt_not_in_axioms_[unc_model_key_main_prompt]
             uncertainty_values_second_prompt = result_df_second_prompt_not_in_axioms[unc_model_key_second_prompt]
+            uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+            uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+            stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+            print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+            print(f"Is it significant? {is_significant}")
+            print('\n')
+            
+            # Axiom 3
+            print(f"== Axiom: 3 ===")
+            selected_list_ = answer_equal_list
+            selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+            selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+            print(f'# Samples: {len(selected_main_prompt_df)}')
+            print(f'# Samples: {len(selected_second_prompt_df)}')
+            
+            uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
+            uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
             uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
             uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
             stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
@@ -344,8 +360,8 @@ def get_axiomatic_results(args):
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
         
-        answers_equality_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
-        answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
+        answers_equality_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
+        answers_equality_output_dir = os.path.dirname(answers_equality_output_file)
         os.makedirs(answers_equality_output_dir, exist_ok=True)
         
         run_axiomatic_metrics(prompt_order)
@@ -362,7 +378,7 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

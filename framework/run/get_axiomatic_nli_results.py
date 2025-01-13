@@ -202,7 +202,7 @@ def get_axiomatic_results(args):
         
         semantically_similar_list = []
         semantically_not_similar_list = []
-        with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
+        with open(answers_equality_output_file, 'w') as jl_ofile:
             for i, sample in tqdm(enumerate(sequence_1)):
                 id_ = sample['id']
                 is_equal = False
@@ -391,10 +391,10 @@ def get_axiomatic_results(args):
         
         ### === Step1: Check if answer1 is equal to answer2 ===
         def get_output_equality():
-            if os.path.isfile(answers_equality_output_jsonl_file):
-                print(f"{answers_equality_output_jsonl_file} exists.")
+            if os.path.isfile(answers_equality_output_file):
+                print(f"{answers_equality_output_file} exists.")
                 answer_equal_list, answer_not_equal_list = [], []
-                with open(answers_equality_output_jsonl_file, 'r') as file:
+                with open(answers_equality_output_file, 'r') as file:
                     for line in file:
                         if line.strip():
                             item = json.loads(line)
@@ -483,8 +483,8 @@ def get_axiomatic_results(args):
         
         axioms12_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axioms12_output.json'
         axioms45_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axiom45_output.json'
-        answers_equality_output_jsonl_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
-        answers_equality_output_dir = os.path.dirname(answers_equality_output_jsonl_file)
+        answers_equality_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
+        answers_equality_output_dir = os.path.dirname(answers_equality_output_file)
         os.makedirs(answers_equality_output_dir, exist_ok=True)
         
         run_axiomatic_metrics(prompt_order)
@@ -764,7 +764,7 @@ if __name__ == "__main__":
     #     semantically_not_similar_list = []
         
     #     ### Similar to semantic similarity
-    #     with open(answers_equality_output_jsonl_file, 'w') as jl_ofile:
+    #     with open(answers_equality_output_file, 'w') as jl_ofile:
     #         for i, sample in tqdm(enumerate(sequence_1)):
     #             id_ = sample['id']
     #             question = sample['question']
