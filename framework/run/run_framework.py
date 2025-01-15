@@ -37,11 +37,13 @@ if __name__ == "__main__":
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
@@ -63,7 +65,7 @@ if __name__ == "__main__":
     parser.add_argument('--alpha_generation', type=float, default=0.5)
     parser.add_argument('--alpha_probability', type=float, default=0.5)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
-    parser.add_argument('--run_id', type=str, default='run_2')
+    parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()
@@ -85,13 +87,13 @@ if __name__ == "__main__":
     ### === Run Steps ============================
     set_seed(args.seed)
     ## === Phase 1: answer generation & cleaning
-    # if args.generation_type == 'normal':
-    #     generation(args)
-    # elif args.generation_type == 'cad':
-    #     generation_cad(args)
+    if args.generation_type == 'normal':
+        generation(args)
+    elif args.generation_type == 'cad':
+        generation_cad(args)
     
     # ## === Phase 2: Uncertainty computation
-    # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
+    get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
     # # get_groundedness(args)
     get_probability(args)
     get_likelihoods_mars(args)
@@ -102,7 +104,8 @@ if __name__ == "__main__":
     # # get_uncertainty_sar(args)
     
     ## === Phase 3: correctness and results
-    # get_correctness(args)
+    # get_axiomatic_variables(args)
+    get_correctness(args)
     get_calibration_results(args)
     # get_axiomatic_results(args)
     

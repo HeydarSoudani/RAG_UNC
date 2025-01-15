@@ -11,8 +11,10 @@ import argparse
 import numpy as np
 import pandas as pd
 import sklearn.metrics
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from utils.significant_testing import wilcoxon_test
 from utils.utils import set_seed, uncertainty_to_confidence_min_max, uncertainty_to_confidence_gaussian, uncertainty_to_confidence_sigmoid, uncertainty_to_confidence_tanh
@@ -38,6 +40,52 @@ def get_calibration_results(args):
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}'
     
+    
+    # === Load semantic model ===================
+    # - Labels: {0: Contradiction, 1: Neutral, 2: Entailment}
+    semantic_model_name = "microsoft/deberta-large-mnli"
+    semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
+    semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
+    semantic_model.eval()    
+    
+    
+    # === Define functions =======================
+    keys_mapping = {
+        'main_prompt': {
+            'PE': 'average_predictive_entropy_main_prompt',
+            'SE': 'predictive_entropy_over_concepts_main_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_main_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_main_prompt',
+            'EigV': 'spectral_u',
+            'Ecc': 'ecc_u',
+            'Deg': 'degree_u',
+        },
+        'second_prompt': {
+            'PE': 'average_predictive_entropy_second_prompt',
+            'SE': 'predictive_entropy_over_concepts_second_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_second_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_second_prompt'
+        },
+        'third_prompt': {
+            'PE': 'average_predictive_entropy_third_prompt',
+            'SE': 'predictive_entropy_over_concepts_third_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
+        },
+        'forth_prompt': {
+            'PE': 'average_predictive_entropy_forth_prompt',
+            'SE': 'predictive_entropy_over_concepts_forth_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
+        },
+        'fifth_prompt': {
+            'PE': 'average_predictive_entropy_fifth_prompt',
+            'SE': 'predictive_entropy_over_concepts_fifth_prompt',
+            'PE_MARS': 'average_predictive_entropy_importance_max_fifth_prompt',
+            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_fifth_prompt'
+        } 
+    }
+
     def create_result_df(main_prompt_format, second_prompt_format):
         
         # For only query case
@@ -51,15 +99,15 @@ def get_calibration_results(args):
         correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
         uncertainty_mars_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
         
+        
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
         with open(similarities_input_file, 'rb') as f:
             similarities_dict = pickle.load(f)
-        with open(uncertainty_mars_input_file, 'rb') as f:
-            uncertainty_mars_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
-        
+        with open(uncertainty_mars_input_file, 'rb') as f:
+            uncertainty_mars_results  = pickle.load(f)
         
         # === Read data ============================
         # 
@@ -107,49 +155,48 @@ def get_calibration_results(args):
         # uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
 
         # 
-        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
+        if main_prompt_format != 'only_q':
+            axiomatic_variables_input_file = f'{results_dir}/{generation_type}/{model}_axiomatic_variables.pkl'
+            with open(axiomatic_variables_input_file, 'rb') as f:
+                axiomatic_variables_results  = pickle.load(f)
+            axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
+            result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
+        else:
+            result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
+        
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
-    # === Define functions =======================
-    keys_mapping = {
-        'main_prompt': {
-            'PE': 'average_predictive_entropy_main_prompt',
-            'SE': 'predictive_entropy_over_concepts_main_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_main_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_main_prompt',
-            'EigV': 'spectral_u',
-            'Ecc': 'ecc_u',
-            'Deg': 'degree_u',
-        },
-        'second_prompt': {
-            'PE': 'average_predictive_entropy_second_prompt',
-            'SE': 'predictive_entropy_over_concepts_second_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_second_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_second_prompt'
-        },
-        'third_prompt': {
-            'PE': 'average_predictive_entropy_third_prompt',
-            'SE': 'predictive_entropy_over_concepts_third_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
-        },
-        'forth_prompt': {
-            'PE': 'average_predictive_entropy_forth_prompt',
-            'SE': 'predictive_entropy_over_concepts_forth_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
-        },
-        'fifth_prompt': {
-            'PE': 'average_predictive_entropy_fifth_prompt',
-            'SE': 'predictive_entropy_over_concepts_fifth_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_fifth_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_fifth_prompt'
-        } 
-    }
+    # def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
+    #     C1 = 0.35
+    #     C2 = 0.25
+    #     C3 = 0.15
+    #     C4 = 0.15
+    #     first_part = 1.0 if answer_equality else 0.0
+    #     second_part = 1.0 if nli_main[0]==2 else 0.0
+    #     return C1*first_part + C2*second_part + C3*nli_main[1] + C4*nli_sec[1]
 
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
+    
+    # result_df_main_prompt['axiomatic_coef'] = [
+    #     get_axiomatic_coef(answer_equality, nli_main, nli_sec)
+    #     for answer_equality, nli_main, nli_sec in tqdm(zip(
+    #         result_df_main_prompt['answer_equality'],
+    #         result_df_main_prompt['nli_relation_main'],
+    #         result_df_main_prompt['nli_relation_second']
+    #     ), desc='Getting axiomatic coef. ...')
+    # ]
+    # # ==== Analyze
+    # result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt[unc_model_key_main_prompt] <UNC_THERESHOLD]
+    # result = result_df_main_prompt_filtered.groupby('axiom_num').agg(
+    #     true_ratio=('exact_match', lambda x: x.sum() / len(x)),
+    #     average_uncertainty=(unc_model_key_main_prompt, 'mean'),
+    #     row_count=(unc_model_key_main_prompt, 'count'),
+    #     coef_mean=('axiomatic_coef', 'mean'),
+    #     coef_unc_mean=(f'{unc_model_key_main_prompt}_coef', 'mean')
+    # ).reset_index()
+    # print(result)
     
     def get_correctness(results):
         correctness_results = {}
@@ -178,6 +225,117 @@ def get_calibration_results(args):
             one_minus_correctness = 1 - results[args.accuracy_metric].astype('int') 
         
         return correctness_results, correctness_bin, one_minus_correctness
+
+    # # TODO: 
+    # def get_axiomatic_weight():
+        
+    #     def get_output_equality(seq1, seq2):
+    #         if seq1 == seq2 or seq1.lower() == seq2 or seq1.capitalize() == seq2:
+    #             return True
+    #         if seq2 == seq1 or seq2.lower() == seq1 or seq2.capitalize() == seq1:
+    #             return True
+    #         return False
+        
+    #     def get_nli_relation(prompt_text, question, output_text):
+            
+    #         # === Prapare inputs
+    #         doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
+    #         answer_ = f"{question} {output_text}"
+            
+    #         # === Common NLI: Similar to semantic semilarity
+    #         input = doc_text + ' [SEP] ' + answer_
+    #         encoded_input = semantic_tokenizer.encode(input, padding=True)
+    #         prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+    #         predicted_label = torch.argmax(prediction, dim=1)
+            
+    #         reverse_input = answer_ + ' [SEP] ' + doc_text
+    #         encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+    #         reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+    #         reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+            
+    #         # === Get label
+    #         nli_label = 0 if (0 in predicted_label or 0 in reverse_predicted_label) else 2            
+    #         prediction_dist = torch.softmax(prediction, dim=1).tolist()[0]
+    #         reverse_prediction_dist = torch.softmax(reverse_prediction, dim=1).tolist()[0]
+    #         entail_score = max(prediction_dist[1], prediction_dist[2], reverse_prediction_dist[1], reverse_prediction_dist[2])
+    #         contradict_score = max(prediction_dist[0], reverse_prediction_dist[0])
+            
+    #         return (nli_label, entail_score)
+        
+    #     def get_axiom_number(answer_equality, nli_main, nli_sec):
+    #         axiom_num = 'others'
+    #         if answer_equality and nli_main[0] == 2:
+    #             axiom_num = '1'
+    #         if answer_equality and nli_main[0] == 0:
+    #             axiom_num = '2'
+    #         if not answer_equality and nli_main[0] == 2 and nli_sec[0] == 0:
+    #             axiom_num = '4'
+    #         if not answer_equality and nli_main[0] == 0 and nli_sec[0] == 2:
+    #             axiom_num = '5'
+            
+    #         return axiom_num
+        
+    #     def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
+    #         C1 = 0.5
+    #         C2 = 0.4
+    #         C3 = 0.1 
+    #         first_part = 1.0 if answer_equality else 0.0
+    #         return C1*first_part + C2*nli_main[1] + C3*nli_sec[1]
+            
+            
+            
+        
+    #     common_ids = pd.merge(result_df_main_prompt, result_df_second_prompt, on='id')['id']
+    #     result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)]
+    #     result_df_second_prompt_filtered = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)]
+        
+    #     result_df_main_prompt_filtered['answer_equality'] = [
+    #         get_output_equality(seq1, seq2)
+    #         for seq1, seq2 in tqdm(zip(
+    #             result_df_main_prompt_filtered['cleaned_most_likely_generation'], 
+    #             result_df_second_prompt_filtered['cleaned_most_likely_generation']
+    #         ), desc='Getting output equality ...')
+    #     ]
+        
+    #     result_df_main_prompt_filtered['nli_relation_main'] = [
+    #         get_nli_relation(prompt_text, question, output)
+    #         for prompt_text, question, output in tqdm(zip(
+    #             result_df_main_prompt_filtered['prompt_text'],
+    #             result_df_main_prompt_filtered['question'],
+    #             result_df_main_prompt_filtered['cleaned_most_likely_generation']
+    #         ), desc='Getting NLI relations (main) ...')
+    #     ]
+        
+    #     result_df_main_prompt_filtered['nli_relation_second'] = [
+    #         get_nli_relation(prompt_text, question, output)
+    #         for prompt_text, question, output in tqdm(zip(
+    #             result_df_main_prompt_filtered['prompt_text'],
+    #             result_df_main_prompt_filtered['question'],
+    #             result_df_second_prompt_filtered['cleaned_most_likely_generation']
+    #         ), desc='Getting NLI relations (second) ...')
+    #     ]
+        
+    #     result_df_main_prompt_filtered['axiom_num'] = [
+    #         get_axiom_number(answer_equality, nli_main, nli_sec)
+    #         for answer_equality, nli_main, nli_sec in tqdm(zip(
+    #             result_df_main_prompt_filtered['answer_equality'],
+    #             result_df_main_prompt_filtered['nli_relation_main'],
+    #             result_df_main_prompt_filtered['nli_relation_second']
+    #         ), desc='Getting axiom number ...')
+    #     ]
+        
+    #     result_df_main_prompt_filtered['axiomatic_coef'] = [
+    #         get_axiomatic_coef(answer_equality, nli_main, nli_sec)
+    #         for answer_equality, nli_main, nli_sec in tqdm(zip(
+    #             result_df_main_prompt_filtered['answer_equality'],
+    #             result_df_main_prompt_filtered['nli_relation_main'],
+    #             result_df_main_prompt_filtered['nli_relation_second']
+    #         ), desc='Getting axiomatic coef. ...')
+    #     ]
+        
+    #     print(result_df_main_prompt_filtered[['id', 'exact_match', 'cleaned_most_likely_generation', 'answer_equality', 'nli_relation_main', 'nli_relation_second', 'axiom_num', 'axiomatic_coef']])
+    #     print('\n')
+    #     print(result_df_second_prompt_filtered[['id', 'exact_match', 'cleaned_most_likely_generation']])
 
     def plot_roc_correctness_vs_uncertainty(correctness, uncertainty, prefix):
         
@@ -345,38 +503,49 @@ def get_calibration_results(args):
         result_dict['correctness'] = correctness_results
         
         # Get uncertainty
-        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: #,  'EigV', 'Ecc', 'Deg'
-            result_dict[uncertainty_model]= {}
+        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
+            
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
-            uncertainty_values = result_df_main_prompt[unc_model_key_main_prompt]
-            uncertainty_values_filtered = uncertainty_values[uncertainty_values <UNC_THERESHOLD]
-            # print(uncertainty_values.nsmallest(10))
-            # print(uncertainty_values.nlargest(10))
             
-            result_dict[uncertainty_model]["Unc._value"] = uncertainty_values_filtered.mean()
-            result_dict[uncertainty_model]["AUROC (Unc.)"] = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values)
+            for type_ in ['normal', 'calibrated']:
+                
+                if type_ == 'calibrated':
+                    label_ = f"{uncertainty_model}_calibrated"
+                    result_df_main_prompt[f'calibrated_{unc_model_key_main_prompt}'] = (
+                        (1.5 - result_df_main_prompt['axiomatic_coef'])*result_df_main_prompt[unc_model_key_main_prompt]
+                    )
+                    uncertainty_values = result_df_main_prompt[f"calibrated_{unc_model_key_main_prompt}"]
+                else:
+                    label_ = f"{uncertainty_model}"
+                    uncertainty_values = result_df_main_prompt[f"{unc_model_key_main_prompt}"]
+                result_dict[label_]= {}
+                
+                uncertainty_values_filtered = uncertainty_values[uncertainty_values <UNC_THERESHOLD]
+                result_dict[label_]["Unc._value"] = uncertainty_values_filtered.mean()
+                result_dict[label_]["AUROC (Unc.)"] = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values)
+                
+                confidence_values = uncertainty_to_confidence_min_max(uncertainty_values_filtered)
+                result_dict[label_]['Conf._normalized'] = confidence_values.mean()
+                result_dict[label_]["AUROC (Conf.)"] = sklearn.metrics.roc_auc_score(correctness_bin[uncertainty_values <UNC_THERESHOLD], confidence_values)
+                
+                ln_predictive_entropy_pearson_corr, ln_predictive_entropy_pearson_p_value = pearsonr(one_minus_correctness, uncertainty_values)
+                ln_predictive_entropy_spearman_corr, ln_predictive_entropy_spearman_p_value = spearmanr(one_minus_correctness, uncertainty_values)
+                result_dict[label_]['pearson_corr'] = ln_predictive_entropy_pearson_corr
+                result_dict[label_]['pearson_p_value'] = ln_predictive_entropy_pearson_p_value
+                result_dict[label_]['spearman_corr'] = ln_predictive_entropy_spearman_corr
+                result_dict[label_]['spearman_p_value'] = ln_predictive_entropy_spearman_p_value
+                
+                # For sig_test
+                unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+                common_ids = result_df_main_prompt[result_df_main_prompt['id'].isin(result_df_second_prompt['id'])]['id']
+                result_df_main_prompt_common = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
+                result_df_second_prompt_common = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
+                uncertainty_values_main_prompt = result_df_main_prompt_common[unc_model_key_main_prompt]
+                uncertainty_values_second_prompt = result_df_second_prompt_common[unc_model_key_second_prompt]
+                
+                stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+                result_dict[label_]["wilcoxon_test"] = is_significant
             
-            confidence_values = uncertainty_to_confidence_min_max(uncertainty_values_filtered)
-            result_dict[uncertainty_model]['Conf._normalized'] = confidence_values.mean()
-            result_dict[uncertainty_model]["AUROC (Conf.)"] = sklearn.metrics.roc_auc_score(correctness_bin[uncertainty_values <UNC_THERESHOLD], confidence_values)
-            
-            ln_predictive_entropy_pearson_corr, ln_predictive_entropy_pearson_p_value = pearsonr(one_minus_correctness, uncertainty_values)
-            ln_predictive_entropy_spearman_corr, ln_predictive_entropy_spearman_p_value = spearmanr(one_minus_correctness, uncertainty_values)
-            result_dict[uncertainty_model]['pearson_corr'] = ln_predictive_entropy_pearson_corr
-            result_dict[uncertainty_model]['pearson_p_value'] = ln_predictive_entropy_pearson_p_value
-            result_dict[uncertainty_model]['spearman_corr'] = ln_predictive_entropy_spearman_corr
-            result_dict[uncertainty_model]['spearman_p_value'] = ln_predictive_entropy_spearman_p_value
-            
-            # For sig_test
-            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
-            common_ids = result_df_main_prompt[result_df_main_prompt['id'].isin(result_df_second_prompt['id'])]['id']
-            result_df_main_prompt_common = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
-            result_df_second_prompt_common = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
-            uncertainty_values_main_prompt = result_df_main_prompt_common[unc_model_key_main_prompt]
-            uncertainty_values_second_prompt = result_df_second_prompt_common[unc_model_key_second_prompt]
-            
-            stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
-            result_dict[uncertainty_model]["wilcoxon_test"] = is_significant
             
             # result_dict[uncertainty_model]['ECE'] = ece_estimate(correctness, confidence_values)
             # result_dict[uncertainty_model]['RCE'] = plugin_RCE_est(correctness, uncertainty_values)
@@ -400,10 +569,7 @@ def get_calibration_results(args):
             #     num_bins=30
             # )
             
-        ### === Save the calibration result ============
-        # print(result_dict)
-        # print('\n')
-        
+        # Save the calibration result
         def convert_to_serializable(obj):
             if isinstance(obj, np.float32):
                 return float(obj)
@@ -417,7 +583,7 @@ def get_calibration_results(args):
             json.dump(result_dict, file, indent=4, default=convert_to_serializable)
         
     # === Main loop ==============================
-    for prompt_order in ['main', 'second', 'third']: #'third', 'forth', 'fifth'
+    for prompt_order in ['main']: # 'main', 'second', 'third'
         calibration_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/{model}_calibration_results.jsonl'
         calibration_output_dir = os.path.dirname(calibration_output_file)
         os.makedirs(calibration_output_dir, exist_ok=True)
@@ -429,21 +595,23 @@ def get_calibration_results(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['dev', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     

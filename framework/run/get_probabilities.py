@@ -39,7 +39,8 @@ def get_probability(args):
     
     base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__{args.main_prompt_format}'
     if not os.path.isdir(base_dir_2ed):
-        base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__q_positive'
+        temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
+        base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__{temp}'
     
     # inputs
     sequence_input_main = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'

@@ -22,7 +22,7 @@ from utils.utils import set_seed, uncertainty_to_confidence_min_max
 UNC_THERESHOLD = 1000
 
 def get_axiomatic_results(args):
-    print("\n--- Step 6: Get Axiomatic Results ...")
+    print("\n--- Step 6: Get Axiomatic Results (NLI) ...")
     print(f"""
         Model name:   {args.model}
         Dataset:      {args.dataset} / {args.subsec}
@@ -61,6 +61,7 @@ def get_axiomatic_results(args):
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
     semantic_model.eval()
+    
     
     # === Functions =============================
     keys_mapping = {
@@ -161,13 +162,30 @@ def get_axiomatic_results(args):
                 likelihoods_small[key] = torch.squeeze(likelihoods_small[key].cpu())
         likelihoods_df = pd.DataFrame.from_dict(likelihoods_small)
         likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
-    
 
         # 
-        result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id') # .merge(groundedness_df, on='id')
+        if main_prompt_format != 'only_q':
+            axiomatic_variables_input_file = f'{results_dir}/{generation_type}/{model}_axiomatic_variables.pkl'
+            with open(axiomatic_variables_input_file, 'rb') as f:
+                axiomatic_variables_results  = pickle.load(f)
+            axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
+            result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
+        else:
+            result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id')
+        
+        # 
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
+    def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
+        C1 = 0.33
+        C2 = 0.33
+        C3 = 0.33
+        first_part = 1.0 if answer_equality else 0.0
+        second_part = 1.0 if nli_main[0]==2 else 0.0
+        return C1*(first_part + second_part) + C2*nli_main[1] + C3*nli_sec[1]
+        # return (3 - nli_main[1] - nli_sec[1]) / (1+ first_part+second_part)
+
     def get_correctness(results):
         correctness_results = {}
         
@@ -292,6 +310,10 @@ def get_axiomatic_results(args):
         
     def get_document_output_relation_axiom45(queries_list, axiom_output_file):
         
+        sequence_main_ = {}
+        for sample in sequences_main:
+            sequence_main_[sample['id']] = sample
+        
         if os.path.isfile(axiom_output_file):
             print(f"{axiom_output_file} exists.")
             with open(axiom_output_file, 'r') as file:
@@ -332,14 +354,14 @@ def get_axiomatic_results(args):
                         relation_main['entailment'].append(item)
             
             ### === Loop on second ====================
-            for idx, sample in tqdm(enumerate(sequences_secondry)):
-                id_ = sample['id']
+            for idx, sample2 in tqdm(enumerate(sequences_secondry)):
+                id_ = sample2['id']
                 if id_ in queries_list:
                     
                     # === Prapare inputs
-                    question = sample['question']
-                    generated_text_most_likely = sample['most_likely_generation']
-                    prompt_text = sample['prompt_text']
+                    question = sample2['question']
+                    generated_text_most_likely = sample2['most_likely_generation']
+                    prompt_text = sequence_main_[id_]['prompt_text']
                     doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
                     answer_ = f"{question} {generated_text_most_likely}"
             
@@ -390,94 +412,107 @@ def get_axiomatic_results(args):
     def run_axiomatic_metrics(prompt_order):
         
         ### === Step1: Check if answer1 is equal to answer2 ===
-        def get_output_equality():
-            if os.path.isfile(answers_equality_output_file):
-                print(f"{answers_equality_output_file} exists.")
-                answer_equal_list, answer_not_equal_list = [], []
-                with open(answers_equality_output_file, 'r') as file:
-                    for line in file:
-                        if line.strip():
-                            item = json.loads(line)
-                            if item['is_equal']:
-                                answer_equal_list.append(item['id'])
-                            else:
-                                answer_not_equal_list.append(item['id'])
-            else:
-                print("Computing similarity ...")
-                answer_equal_list, answer_not_equal_list = compute_answer_equality_em(sequences_main, sequences_secondry)
+        # def get_output_equality():
+        #     if os.path.isfile(answers_equality_output_file):
+        #         print(f"{answers_equality_output_file} exists.")
+        #         answer_equal_list, answer_not_equal_list = [], []
+        #         with open(answers_equality_output_file, 'r') as file:
+        #             for line in file:
+        #                 if line.strip():
+        #                     item = json.loads(line)
+        #                     if item['is_equal']:
+        #                         answer_equal_list.append(item['id'])
+        #                     else:
+        #                         answer_not_equal_list.append(item['id'])
+        #     else:
+        #         print("Computing similarity ...")
+        #         answer_equal_list, answer_not_equal_list = compute_answer_equality_em(sequences_main, sequences_secondry)
             
-            print(f"Answer equal: {len(answer_equal_list)}")
-            print(f"Answer not equal: {len(answer_not_equal_list)}")
-            return answer_equal_list, answer_not_equal_list
-        answer_equal_list, answer_not_equal_list = get_output_equality()
+        #     print(f"Answer equal: {len(answer_equal_list)}")
+        #     print(f"Answer not equal: {len(answer_not_equal_list)}")
+        #     return answer_equal_list, answer_not_equal_list
+        # answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['SE', 'PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
             
             all_axioms_ids = []
-            for axiom_num in ['1', '2', '4', '5', 'other']: # '1', '2', '4', '5', 'other'
+            for axiom_num in ['1', '2', '4', '5', 'others']: # '1', '2', '4', '5', 'other'
                 print(f"== Axiom: {axiom_num} ===")
                 
-                # === Get samples =========================
-                if axiom_num in ['1', '2']:
-                    axiom1_items, axiom2_items = get_document_output_relation_axiom12(answer_equal_list, axioms12_output_file)
-                    selected_list = axiom1_items if axiom_num=='1' else axiom2_items
+                # === Get samples (v1) =====================
+                # if axiom_num in ['1', '2']:
+                #     axiom1_items, axiom2_items = get_document_output_relation_axiom12(answer_equal_list, axioms12_output_file)
+                #     selected_list = axiom1_items if axiom_num=='1' else axiom2_items
                 
-                elif axiom_num in ['4', '5', 'other']:
-                    axiom4_items, axiom5_items, other_items = get_document_output_relation_axiom45(answer_not_equal_list, axioms45_output_file)
-                    selected_list = axiom4_items if axiom_num=='4' else axiom5_items if axiom_num=='5' else other_items
+                # elif axiom_num in ['4', '5', 'other']:
+                #     axiom4_items, axiom5_items, other_items = get_document_output_relation_axiom45(answer_not_equal_list, axioms45_output_file)
+                #     selected_list = axiom4_items if axiom_num=='4' else axiom5_items if axiom_num=='5' else other_items
                     
-                if len(selected_list) > 0:
-                    selected_list_ = [tup[0] for tup in selected_list]
-                    selected_main_prompt_df_ = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
-                    selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
-                    selected_main_prompt_df = selected_main_prompt_df_[selected_main_prompt_df_['id'].isin(selected_second_prompt_df['id'].tolist())] 
-                    print(f'# Samples: {len(selected_main_prompt_df)}')
-                    print(f'# Samples: {len(selected_main_prompt_df)}')
-                    all_axioms_ids.extend(selected_main_prompt_df['id'].tolist())
+                # if len(selected_list) > 0:
+                #     selected_list_ = [tup[0] for tup in selected_list]
+                #     selected_main_prompt_df_ = result_df_main_prompt[result_df_main_prompt['id'].isin(selected_list_)]
+                #     selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_list_)]
+                #     selected_main_prompt_df = selected_main_prompt_df_[selected_main_prompt_df_['id'].isin(selected_second_prompt_df['id'].tolist())] 
+                #     print(f'# Samples: {len(selected_main_prompt_df)}')
+                #     print(f'# Samples: {len(selected_main_prompt_df)}')
+                #     all_axioms_ids.extend(selected_main_prompt_df['id'].tolist())
                     
+                # === Get samples (v2) =====================    
+                selected_main_prompt_df = result_df_main_prompt[result_df_main_prompt['axiom_num'] == axiom_num]
+                selected_second_prompt_df = result_df_second_prompt[result_df_second_prompt['id'].isin(selected_main_prompt_df['id'].tolist())]
+                print(f'# Samples: {len(selected_main_prompt_df)}')
+                print(f'# Samples: {len(selected_second_prompt_df)}')
+                
                 # === Get Uncertainty =====================
                 # if axiom_num in ['1', '2']:
-                uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
-                uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
-                uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
-                uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
-                stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
-                print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
-                print(f"Is it significant? {is_significant}")
-                
-                # Get Correctness
-                _, correctness_main_prompt_bin, one_minus_correctness_main_prompt = get_correctness(selected_main_prompt_df)
-                _, correctness_second_prompt_bin, one_minus_correctness_second_prompt = get_correctness(selected_second_prompt_df)
-                correctness_main_prompt = 1 - np.array(one_minus_correctness_main_prompt)
-                correctness_second_prompt = 1 - np.array(one_minus_correctness_second_prompt)
-                
-                # Get AUROC
-                if len(set(correctness_main_prompt_bin)) == 1:
-                    print("Warning: Only one class present in y_true. ROC AUC score is not defined.")
-                    auroc_main_prompt = 0.5
-                    auroc_second_prompt = 0.5
-                else:
-                    auroc_main_prompt = sklearn.metrics.roc_auc_score(1 - correctness_main_prompt_bin, uncertainty_values_main_prompt)
-                    auroc_second_prompt = sklearn.metrics.roc_auc_score(1 - correctness_second_prompt_bin, uncertainty_values_second_prompt)
-                
-                # Get Spearman
-                spearman_main_prompt_corr, spearman_main_prompt_p_value = spearmanr(1-correctness_main_prompt_bin, uncertainty_values_main_prompt)
-                spearman_second_prompt_corr, spearman_second_prompt_p_value = spearmanr(1-correctness_second_prompt_bin, uncertainty_values_second_prompt)
-                
-                print(f"Accuracy: {round(correctness_second_prompt.mean()*100, 2)} -> {round(correctness_main_prompt.mean()*100, 2)}")
-                print(f"AUROC:    {round(auroc_second_prompt, 3)} -> {round(auroc_main_prompt, 3)}")
-                print(f"Spearman: {round(spearman_second_prompt_corr, 3)}±{round(spearman_second_prompt_p_value, 3)} -> {round(spearman_main_prompt_corr, 3)}±{round(spearman_main_prompt_p_value, 3)}")
-            print('\n\n')
+                for type_ in ['normal']: # 'calibrated'
+                    
+                    if type_ == 'calibrated':
+                        uncertainty_values_main_prompt = (1.5 - selected_main_prompt_df['axiomatic_coef']) * selected_main_prompt_df[unc_model_key_main_prompt]
+                        uncertainty_values_second_prompt = (1.5 - selected_main_prompt_df['axiomatic_coef']) * selected_second_prompt_df[unc_model_key_second_prompt]
+                    else:
+                        uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
+                        uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
+                        
+                    uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
+                    uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
+                    stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
+                    print(f"Type: {type_}")
+                    print(f"Uncertainty: {uncertainty_values_second_prompt_filtered.mean():.3f} -> {uncertainty_values_main_prompt_filtered.mean():.3f}")
+                    print(f"Is it significant? {is_significant}")
+                    print('\n')
+                    
+            print('\n')
         
     # ======
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
-      
-    for prompt_order in ['main']: # 'second', 'third', 'forth'
+    
+    # # For testing ......
+    # unc_model_key_main_prompt = 'average_predictive_entropy_main_prompt'
+    # result_df_main_prompt['axiomatic_coef'] = [
+    #     get_axiomatic_coef(answer_equality, nli_main, nli_sec)
+    #     for answer_equality, nli_main, nli_sec in tqdm(zip(
+    #         result_df_main_prompt['answer_equality'],
+    #         result_df_main_prompt['nli_relation_main'],
+    #         result_df_main_prompt['nli_relation_second']
+    #     ), desc='Getting axiomatic coef. ...')
+    # ]
+    # result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt[unc_model_key_main_prompt] <UNC_THERESHOLD]
+    # result = result_df_main_prompt_filtered.groupby('axiom_num').agg(
+    #     true_ratio=('exact_match', lambda x: x.sum() / len(x)),
+    #     average_uncertainty=(unc_model_key_main_prompt, 'mean'),
+    #     row_count=(unc_model_key_main_prompt, 'count'),
+    #     coef_mean=('axiomatic_coef', 'mean'),
+    #     # coef_unc_mean=(f'{unc_model_key_main_prompt}_coef', 'mean')
+    # ).reset_index()
+    # print(result)
+    
+    for prompt_order in ['main']: # main, 'second', 'third', 'forth'
         print(f"=== {prompt_order} ====================================")
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
@@ -495,21 +530,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[

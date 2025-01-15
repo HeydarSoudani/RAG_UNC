@@ -19,7 +19,7 @@ UNC_THERESHOLD = 1000
 
 
 def get_axiomatic_results(args):
-    print("\n--- Step 6: Get Axiomatic Results V3 ...")
+    print("\n--- Step 6: Get Axiomatic Results (Correctness) ...")
     print(f"""
         Model name:   {args.model}
         Dataset:      {args.dataset} / {args.subsec}
@@ -227,10 +227,10 @@ def get_axiomatic_results(args):
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
-            unc_model_key_second_prompt = keys_mapping['second_prompt'][uncertainty_model]
+            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
         
             all_axioms_ids = []
             for axiom_num in ['1', '2', '4', '5']: # '1', '2', '4', '5'
@@ -356,7 +356,7 @@ def get_axiomatic_results(args):
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
         
-    for prompt_order in ['second']: # 'third', 'second', 'forth'
+    for prompt_order in ['main']: # 'third', 'second', 'forth'
         print(f"=== {prompt_order} ====================================")
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
@@ -372,21 +372,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold','trivia', 'popqa', 'nqswap',
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+        'nqgold', 'trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
