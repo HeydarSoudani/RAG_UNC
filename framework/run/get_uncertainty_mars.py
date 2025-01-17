@@ -25,7 +25,7 @@ def get_uncertainty_mars(args):
     # === Define/Read In/Out files ========================
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
     likelihoods_file = f'{base_dir}/{generation_type}/{model}_likelihoods_generation.pkl'
     # outputs

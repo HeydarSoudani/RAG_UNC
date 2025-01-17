@@ -4,6 +4,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import itertools
 import json
 import torch
 import pickle
@@ -34,7 +35,7 @@ def get_axiomatic_results(args):
     
     # === Define output files ===================
     model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     
     
@@ -177,15 +178,14 @@ def get_axiomatic_results(args):
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
-    def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
-        C1 = 0.33
-        C2 = 0.33
-        C3 = 0.33
-        first_part = 1.0 if answer_equality else 0.0
-        second_part = 1.0 if nli_main[0]==2 else 0.0
-        return C1*(first_part + second_part) + C2*nli_main[1] + C3*nli_sec[1]
-        # return (3 - nli_main[1] - nli_sec[1]) / (1+ first_part+second_part)
-
+    def get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.33, 0.33)):
+        C1, C2 = coefs[0], coefs[1]
+        
+        # switch_main = 1.0 if nli_main[0]==2 else 0.0
+        # switch_2ed = 1.0 if nli_sec[0]==2 else 0.0
+        # return C1*answer_equality_nli[1] + C2*switch_main*nli_main[1] + C3*switch_2ed*nli_sec[1]
+        return C1*answer_equality_nli[1] + C2*nli_main[1]
+    
     def get_correctness(results):
         correctness_results = {}
         
@@ -434,10 +434,39 @@ def get_axiomatic_results(args):
         # answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            
+            # === 2) Get Axiomatic Coef.
+            # result_df_main_prompt['axiomatic_coef'] = [
+            #     get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6))
+            #     for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
+            #         result_df_main_prompt['answer_equality_nli'],
+            #         result_df_main_prompt['nli_relation_main'],
+            #         result_df_main_prompt['nli_relation_second']
+            #     ), desc='Getting axiomatic coef. ...')
+            # ]
+            
+            # filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num'].isin(['1', '2', '4', '5'])]
+            # mean_value = filtered_df['axiomatic_coef'].mean()
+            # std_value = filtered_df['axiomatic_coef'].std()
+            # print(f"axiomatic_coef -> mean: {mean_value}, std:{std_value}")
+            
+            # result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"] = (1.0+mean_value - result_df_main_prompt['axiomatic_coef']) * result_df_main_prompt[unc_model_key_main_prompt]
+            
+            # result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt[unc_model_key_main_prompt] <UNC_THERESHOLD]
+            # result = result_df_main_prompt_filtered.groupby('axiom_num').agg(
+            #     true_ratio=('exact_match', lambda x: x.sum() / len(x)),
+            #     average_uncertainty=(unc_model_key_main_prompt, 'mean'),
+            #     row_count=(unc_model_key_main_prompt, 'count'),
+            #     coef_mean=('axiomatic_coef', 'mean'),
+            #     coef_unc_mean=(f'{unc_model_key_main_prompt}_cal', 'mean')
+            # ).reset_index()
+            # print(result)
+            
+            
             
             all_axioms_ids = []
             for axiom_num in ['1', '2', '4', '5', 'others']: # '1', '2', '4', '5', 'other'
@@ -468,16 +497,17 @@ def get_axiomatic_results(args):
                 print(f'# Samples: {len(selected_second_prompt_df)}')
                 
                 # === Get Uncertainty =====================
-                # if axiom_num in ['1', '2']:
                 for type_ in ['normal']: # 'calibrated'
                     
                     if type_ == 'calibrated':
-                        uncertainty_values_main_prompt = (1.5 - selected_main_prompt_df['axiomatic_coef']) * selected_main_prompt_df[unc_model_key_main_prompt]
-                        uncertainty_values_second_prompt = (1.5 - selected_main_prompt_df['axiomatic_coef']) * selected_second_prompt_df[unc_model_key_second_prompt]
+                        # uncertainty_values_main_prompt = (1.15 - selected_main_prompt_df['axiomatic_coef']) * selected_main_prompt_df[unc_model_key_main_prompt]
+                        # uncertainty_values_second_prompt = (1.5 - selected_main_prompt_df['axiomatic_coef']) * selected_second_prompt_df[unc_model_key_second_prompt]
+                        uncertainty_values_main_prompt = selected_main_prompt_df[f"{unc_model_key_main_prompt}_cal"]
+                        
                     else:
                         uncertainty_values_main_prompt =  selected_main_prompt_df[unc_model_key_main_prompt]
-                        uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]
-                        
+                    
+                    uncertainty_values_second_prompt = selected_second_prompt_df[unc_model_key_second_prompt]    
                     uncertainty_values_main_prompt_filtered =  uncertainty_values_main_prompt[uncertainty_values_main_prompt<UNC_THERESHOLD]
                     uncertainty_values_second_prompt_filtered = uncertainty_values_second_prompt[uncertainty_values_second_prompt<UNC_THERESHOLD]
                     stat, p_value, is_significant = wilcoxon_test(uncertainty_values_main_prompt.tolist(), uncertainty_values_second_prompt.tolist())
@@ -492,36 +522,53 @@ def get_axiomatic_results(args):
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)    
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
     
-    # # For testing ......
-    # unc_model_key_main_prompt = 'average_predictive_entropy_main_prompt'
-    # result_df_main_prompt['axiomatic_coef'] = [
-    #     get_axiomatic_coef(answer_equality, nli_main, nli_sec)
-    #     for answer_equality, nli_main, nli_sec in tqdm(zip(
-    #         result_df_main_prompt['answer_equality'],
-    #         result_df_main_prompt['nli_relation_main'],
-    #         result_df_main_prompt['nli_relation_second']
-    #     ), desc='Getting axiomatic coef. ...')
-    # ]
-    # result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt[unc_model_key_main_prompt] <UNC_THERESHOLD]
-    # result = result_df_main_prompt_filtered.groupby('axiom_num').agg(
-    #     true_ratio=('exact_match', lambda x: x.sum() / len(x)),
-    #     average_uncertainty=(unc_model_key_main_prompt, 'mean'),
-    #     row_count=(unc_model_key_main_prompt, 'count'),
-    #     coef_mean=('axiomatic_coef', 'mean'),
-    #     # coef_unc_mean=(f'{unc_model_key_main_prompt}_coef', 'mean')
-    # ).reset_index()
-    # print(result)
+    # === For testing ......
     
-    for prompt_order in ['main']: # main, 'second', 'third', 'forth'
+    # === 1) Get Coefs.
+    # values = np.arange(0, 1.05, 0.05)
+    # valid_combinations = [(a, b) for a, b in itertools.product(values, repeat=2) if np.isclose(a + b, 1)]
+    # best_coefs = None
+    # best_auroc = float('-inf')
+
+    # prompt_order = 'main'
+    # uncertainty_model = 'PE'
+    # unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
+    # filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num'].isin(['1', '2', '4', '5'])]
+    # _, correctness_bin, _ = get_correctness(result_df_main_prompt)
+    
+    # for c1, c2 in tqdm(valid_combinations, desc="Searching coefs ..."):
+    #     temp_axiomatic_coef = [
+    #         get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(c1, c2))
+    #         for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
+    #             result_df_main_prompt['answer_equality_nli'],
+    #             result_df_main_prompt['nli_relation_main'],
+    #             result_df_main_prompt['nli_relation_second']
+    #         ), desc='Getting axiomatic coef. ...')
+    #     ]
+    #     temp_axiomatic_coef_series = pd.Series(temp_axiomatic_coef, index=result_df_main_prompt.index)
+        
+    #     mean_value = filtered_df['axiomatic_coef'].mean()
+    #     std_value = filtered_df['axiomatic_coef'].std()
+        
+    #     uncertainty_values = ((1.0+mean_value - temp_axiomatic_coef_series)*result_df_main_prompt[unc_model_key_main_prompt])
+    #     temp_auroc = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values)
+    
+    #     if temp_auroc > best_auroc:
+    #         best_auroc = temp_auroc
+    #         best_coefs = (c1, c2)
+    # print(f"Best parameters: {best_coefs} with score: {best_auroc}")
+
+    
+    for prompt_order in ['second']: # main, 'second', 'third', 'forth'
         print(f"=== {prompt_order} ====================================")
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
         
-        axioms12_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axioms12_output.json'
-        axioms45_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axiom45_output.json'
-        answers_equality_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
-        answers_equality_output_dir = os.path.dirname(answers_equality_output_file)
-        os.makedirs(answers_equality_output_dir, exist_ok=True)
+        # axioms12_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axioms12_output.json'
+        # axioms45_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_axiom45_output.json'
+        # answers_equality_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
+        # answers_equality_output_dir = os.path.dirname(answers_equality_output_file)
+        # os.makedirs(answers_equality_output_dir, exist_ok=True)
         
         run_axiomatic_metrics(prompt_order)
 
@@ -536,8 +583,8 @@ if __name__ == "__main__":
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test', 'validation'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

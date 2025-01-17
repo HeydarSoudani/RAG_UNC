@@ -3,10 +3,10 @@ import numpy as np
 
 FOLDER_PATH = 'framework/plots/imgs'
 
-
 datasets = ["NQ-open", "TriviaQA", "PopQA"]
 uncertainty_methods = ["PE", "SE", "PE+M", "SE+M"]
 retrieval_models = ["No doc", "-doc", "BM25", "Contriever", "Rerank", "+doc"]
+colors = ['deepskyblue', 'darkorange', 'mediumseagreen', 'orchid']
 
 # Random AUROC data for demonstration (shape: 3 datasets x 4 methods x 5 models)
 # auroc_values = np.random.rand(3, len(uncertainty_methods), len(retrieval_models))
@@ -30,29 +30,29 @@ auroc_values = np.array([
         [76.65, 55.59, 65.32, 63.96, 59.70, np.nan]  # SE+M
     ]
 ])
-# no_doc_values = [
-#     0.7, # NQ
-#     0.6, # TQA 
-#     0.8  # PQA
-# ]
 
 
 fig, axes = plt.subplots(1, len(datasets), figsize=(15, 3.3), sharey=True)
+bar_width = 0.15
+x = np.arange(len(retrieval_models))
+
 for i, ax in enumerate(axes):
     for j, method in enumerate(uncertainty_methods):
-        ax.plot(retrieval_models, auroc_values[i, j], marker='o', label=method)
-    
-    # ax.axhline(y=no_doc_values[i], color='gray', linestyle='--', linewidth=1, label=f"No doc {no_doc_values[i]:.2f}")
+        # ax.plot(retrieval_models, auroc_values[i, j], marker='o', label=method)
+        ax.bar(x + j * bar_width, auroc_values[i, j, :], width=bar_width, label=method, color=colors[j])
 
+    ax.axhline(y=np.max(auroc_values[i, :, 0]), color='gray', linestyle='--', linewidth=1.3, label=f"No doc")
+    
+    ax.set_xticks(x + 1.5*bar_width)
     ax.set_title(datasets[i])
-    ax.set_xticks(range(len(retrieval_models)))
+    # ax.set_xticks(range(len(retrieval_models)))
+    ax.set_ylim([50, 85])
     ax.set_xticklabels(retrieval_models)
-    ax.grid(True, linestyle='--', alpha=0.6)
+    # ax.grid(True, linestyle='--', alpha=0.6)
 
 axes[0].set_ylabel("AUROC")
-# axes[-1].legend(title="UQ Methods", bbox_to_anchor=(1.05, 1), loc='upper left')
 axes[1].set_xlabel("Retrieval Models")
-axes[-1].legend(title="UQ Methods", loc='upper right')
+axes[-1].legend(title="UE Methods", loc='upper right')
 
 
 plt.tight_layout()

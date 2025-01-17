@@ -31,9 +31,9 @@ def get_axiomatic_results(args):
     
     # === Define output files ===================
     model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    
+
     
     # === For getting equal outputs =============
     sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
@@ -227,7 +227,7 @@ def get_axiomatic_results(args):
         answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]

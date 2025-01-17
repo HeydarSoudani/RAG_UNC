@@ -17,6 +17,7 @@ from get_uncertainty_mars import get_uncertainty_mars
 from get_uncertainty_blackbox import get_uncertainty_bb
 from get_uncertainty_sar import get_uncertainty_sar
 
+from get_axiomatic_variables import get_axiomatic_variables
 from get_correctness import get_correctness
 from get_calibration_results import get_calibration_results
 from get_axiomatic_nli_results import get_axiomatic_results
@@ -33,7 +34,7 @@ if __name__ == "__main__":
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test', 'validation'])
     parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
@@ -104,9 +105,9 @@ if __name__ == "__main__":
     # # get_uncertainty_sar(args)
     
     ## === Phase 3: correctness and results
-    # get_axiomatic_variables(args)
     get_correctness(args)
-    get_calibration_results(args)
+    get_axiomatic_variables(args)
+    # get_calibration_results(args)
     # get_axiomatic_results(args)
     
     

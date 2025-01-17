@@ -29,7 +29,7 @@ def get_likelihoods_mars(args):
     # === Read the generation & similarities data ===
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
     sequence_input = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
     similarities_file = f'{base_dir}/{model}_similarities_generation.pkl'

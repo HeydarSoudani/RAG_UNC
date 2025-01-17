@@ -9,8 +9,9 @@ import pickle
 import argparse
 import numpy as np
 import pandas as pd
-import sklearn.metrics
 from tqdm import tqdm
+import sklearn.metrics
+from sklearn.metrics import classification_report, confusion_matrix
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from utils.utils import set_seed
@@ -30,7 +31,7 @@ def get_axiomatic_variables(args):
     # === Define output files ===================
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}'
     
     # inputs
     sequence_input = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
@@ -46,7 +47,6 @@ def get_axiomatic_variables(args):
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
     semantic_model.eval()
-    
     
     # === Define functions =======================
     def create_result_df(main_prompt_format, second_prompt_format):
@@ -122,7 +122,7 @@ def get_axiomatic_variables(args):
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
         
-    def get_output_equality(seq1, seq2):
+    def get_output_equality_em(seq1, seq2):
         seq1 = seq1.strip()
         seq2 = seq2.strip()
         
@@ -132,6 +132,28 @@ def get_axiomatic_variables(args):
             return True
         return False
     
+    def get_output_equality_nli(question, output_text1, output_text2):
+        answer_1 = f"{question} {output_text1}"
+        answer_2 = f"{question} {output_text2}"
+        
+        # === Common NLI: Similar to semantic semilarity
+        input = answer_1 + ' [SEP] ' + answer_2
+        encoded_input = semantic_tokenizer.encode(input, padding=True)
+        prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
+        predicted_label = torch.argmax(prediction, dim=1)
+        
+        reverse_input = answer_2 + ' [SEP] ' + answer_1
+        encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
+        reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
+        reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
+        
+        prediction_dist = torch.softmax(prediction, dim=1).tolist()[0]
+        reverse_prediction_dist = torch.softmax(reverse_prediction, dim=1).tolist()[0]
+        is_equal = False if (0 in predicted_label or 0 in reverse_predicted_label) else True
+        entail_score = max(prediction_dist[2], reverse_prediction_dist[2])
+        
+        return (is_equal, entail_score)
+        
     def get_nli_relation(prompt_text, question, output_text):
         
         # === Prapare inputs
@@ -150,7 +172,7 @@ def get_axiomatic_variables(args):
         reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
         
         # === Get label
-        nli_label = 0 if (0 in predicted_label or 0 in reverse_predicted_label) else 2            
+        nli_label = 0 if (0 in predicted_label or 0 in reverse_predicted_label) else 2
         prediction_dist = torch.softmax(prediction, dim=1).tolist()[0]
         reverse_prediction_dist = torch.softmax(reverse_prediction, dim=1).tolist()[0]
         entail_score = max(prediction_dist[1], prediction_dist[2], reverse_prediction_dist[1], reverse_prediction_dist[2])
@@ -158,7 +180,7 @@ def get_axiomatic_variables(args):
         
         return (nli_label, entail_score)
     
-    def get_axiom_number(answer_equality, nli_main, nli_sec):
+    def get_axiom_number_nli(answer_equality, nli_main, nli_sec):
         axiom_num = 'others'
         if answer_equality and nli_main[0] == 2:
             axiom_num = '1'
@@ -171,13 +193,26 @@ def get_axiomatic_variables(args):
         
         return axiom_num
     
-    def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
-        C1 = 0.33
-        C2 = 0.33
-        C3 = 0.33
-        first_part = 1.0 if answer_equality else 0.0
-        second_part = 1.0 if nli_main[0]==2 else 0.0
-        return C1*(first_part + second_part) + C2*nli_main[1] + C3*nli_sec[1]
+    def get_axiom_number_correctness(answer_equality, correctness_main, correctness_sec):
+        axiom_num = 'others'
+        if answer_equality and correctness_main:
+            axiom_num = '1'
+        if answer_equality and not correctness_main:
+            axiom_num = '2'
+        if not answer_equality and correctness_main and not correctness_sec:
+            axiom_num = '4'
+        if not answer_equality and not correctness_main and correctness_sec:
+            axiom_num = '5'
+        if not answer_equality and correctness_main and correctness_sec:
+            axiom_num = '1'
+        
+        return axiom_num
+    
+    def get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.33, 0.33, 0.33)):
+        C1, C2, C3 = coefs[0], coefs[1], coefs[2]
+        # first_part = 1.0 if answer_equality else 0.0
+        # second_part = 1.0 if nli_main[0]==2 else 0.0
+        return C1*answer_equality_nli[1] + C2*nli_main[1] + C3*nli_sec[1]
     
     # === Main process ===========================
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)
@@ -187,19 +222,29 @@ def get_axiomatic_variables(args):
     result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)]
     result_df_second_prompt_filtered = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)]
     
-    result_df_main_prompt_filtered['answer_equality'] = [
-        get_output_equality(seq1, seq2)
+    result_df_main_prompt_filtered['answer_equality_em'] = [
+        get_output_equality_em(seq1, seq2)
         for seq1, seq2 in tqdm(zip(
             result_df_main_prompt_filtered['cleaned_most_likely_generation'], 
             result_df_second_prompt_filtered['cleaned_most_likely_generation']
-        ), desc='Getting output equality ...')
+        ), desc='Getting output equality (EM) ...')
     ]
+    em_counts = result_df_main_prompt_filtered['answer_equality_em'].value_counts()
+    print(f"AE-EM (equal): {em_counts.get(True, 0)}")
+    print(f"AE-EM (not equal): {em_counts.get(False, 0)}")
     
-    counts = result_df_main_prompt_filtered['answer_equality'].value_counts()
-    print(f"Number of True samples: {counts.get(True, 0)}")
-    print(f"Number of False samples: {counts.get(False, 0)}")
-    
-    
+    result_df_main_prompt_filtered['answer_equality_nli'] = [
+        get_output_equality_nli(question, seq1, seq2)
+        for question, seq1, seq2 in tqdm(zip(
+            result_df_main_prompt_filtered['question'],
+            result_df_main_prompt_filtered['cleaned_most_likely_generation'], 
+            result_df_second_prompt_filtered['cleaned_most_likely_generation']
+        ), desc='Getting output equality (NLI) ...')
+    ]
+    nli_counts = result_df_main_prompt_filtered['answer_equality_nli'].apply(lambda x: x[0]).value_counts()
+    print(f"AE-NLI (equal): {nli_counts.get(True, 0)}")
+    print(f"AE-NLI (not equal): {nli_counts.get(False, 0)}")
+
     result_df_main_prompt_filtered['nli_relation_main'] = [
         get_nli_relation(prompt_text, question, output)
         for prompt_text, question, output in tqdm(zip(
@@ -218,28 +263,61 @@ def get_axiomatic_variables(args):
         ), desc='Getting NLI relations (second) ...')
     ]
     
-    result_df_main_prompt_filtered['axiom_num'] = [
-        get_axiom_number(answer_equality, nli_main, nli_sec)
+    result_df_main_prompt_filtered['axiom_num_nli'] = [
+        get_axiom_number_nli(answer_equality, nli_main, nli_sec)
         for answer_equality, nli_main, nli_sec in tqdm(zip(
-            result_df_main_prompt_filtered['answer_equality'],
+            result_df_main_prompt_filtered['answer_equality_em'],
             result_df_main_prompt_filtered['nli_relation_main'],
             result_df_main_prompt_filtered['nli_relation_second']
-        ), desc='Getting axiom number ...')
+        ), desc='Getting axiom number (NLI) ...')
+    ]
+    
+    result_df_main_prompt_filtered['axiom_num_correctness'] = [
+        get_axiom_number_correctness(answer_equality, correctness_main, correctness_sec)
+        for answer_equality, correctness_main, correctness_sec in tqdm(zip(
+            result_df_main_prompt_filtered['answer_equality_em'],
+            result_df_main_prompt_filtered['exact_match'],
+            result_df_second_prompt_filtered['exact_match']
+        ), desc='Getting axiom number (EM) ...')
     ]
     
     result_df_main_prompt_filtered['axiomatic_coef'] = [
-        get_axiomatic_coef(answer_equality, nli_main, nli_sec)
-        for answer_equality, nli_main, nli_sec in tqdm(zip(
-            result_df_main_prompt_filtered['answer_equality'],
+        get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec)
+        for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
+            result_df_main_prompt_filtered['answer_equality_nli'],
             result_df_main_prompt_filtered['nli_relation_main'],
             result_df_main_prompt_filtered['nli_relation_second']
         ), desc='Getting axiomatic coef. ...')
     ]
     
+    # Grid search for C1, C2, C3
+    # TODO
+    
+    cm = confusion_matrix(
+        result_df_main_prompt_filtered["axiom_num_correctness"],
+        result_df_main_prompt_filtered["axiom_num_nli"],
+        labels=["1", "2", "4", "5", "others"])
+    # Compute classification report (Precision, Recall, F1-score)
+    report = classification_report(
+        result_df_main_prompt_filtered["axiom_num_correctness"],
+        result_df_main_prompt_filtered["axiom_num_nli"],
+        labels=["1", "2", "4", "5", "others"],
+        digits=4
+    )
+
+    # Display results
+    print("Confusion Matrix:")
+    print(cm)
+    print("\nClassification Report:")
+    print(report)
+
+    
+    
     # print(result_df_main_prompt_filtered[['id', 'exact_match', 'cleaned_most_likely_generation', 'answer_equality', 'nli_relation_main', 'nli_relation_second', 'axiom_num', 'axiomatic_coef']])
     # print('\n')
     # print(result_df_second_prompt_filtered[['id', 'exact_match', 'cleaned_most_likely_generation']])
 
+    # === Write to file =====================
     variables_sequences = []
     for idx, sample in tqdm(enumerate(sequences)):
         question_id = sample['id']
@@ -252,16 +330,20 @@ def get_axiomatic_variables(args):
         }
 
         if question_id in result_df_main_prompt_filtered['id'].values:
-            sequence_dict['answer_equality'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'answer_equality'].iloc[0]
+            sequence_dict['answer_equality_em'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'answer_equality_em'].iloc[0]
+            sequence_dict['answer_equality_nli'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'answer_equality_nli'].iloc[0]
             sequence_dict['nli_relation_main'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'nli_relation_main'].iloc[0]
             sequence_dict['nli_relation_second'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'nli_relation_second'].iloc[0]
-            sequence_dict['axiom_num'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'axiom_num'].iloc[0]
+            sequence_dict['axiom_num_nli'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'axiom_num_nli'].iloc[0]
+            sequence_dict['axiom_num_correctness'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'axiom_num_correctness'].iloc[0]
             sequence_dict['axiomatic_coef'] = result_df_main_prompt_filtered.loc[result_df_main_prompt_filtered['id'] == question_id, 'axiomatic_coef'].iloc[0]
         else:
-            sequence_dict['answer_equality'] = False
-            sequence_dict['nli_relation_main'] = (0, 0)
-            sequence_dict['nli_relation_second'] = (0, 0)
-            sequence_dict['axiom_num'] = "not_common"
+            sequence_dict['answer_equality_em'] = False
+            sequence_dict['answer_equality_nli'] = (False, 0.0)
+            sequence_dict['nli_relation_main'] = (0, 0.0)
+            sequence_dict['nli_relation_second'] = (0, 0.0)
+            sequence_dict['axiom_num_nli'] = "not_common"
+            sequence_dict['axiom_num_correctness'] = "not_common"
             sequence_dict['axiomatic_coef'] = 0.0
     
         variables_sequences.append(sequence_dict)
@@ -275,14 +357,14 @@ def get_axiomatic_variables(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
         'nqgold', 'trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test', 'validation'])
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

@@ -28,7 +28,7 @@ def get_correctness(args):
 
     # === Define output file ========================
     model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
     sequence_input = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
     similarities_file = f'{base_dir}/{model}_similarities_generation.pkl'

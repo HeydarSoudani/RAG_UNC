@@ -38,7 +38,7 @@ def get_calibration_results(args):
     # archive_500samples
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}'
     
     
     # === Load semantic model ===================
@@ -226,117 +226,14 @@ def get_calibration_results(args):
         
         return correctness_results, correctness_bin, one_minus_correctness
 
-    # # TODO: 
-    # def get_axiomatic_weight():
+    def get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.33, 0.33)):
+        C1, C2 = coefs[0], coefs[1]
         
-    #     def get_output_equality(seq1, seq2):
-    #         if seq1 == seq2 or seq1.lower() == seq2 or seq1.capitalize() == seq2:
-    #             return True
-    #         if seq2 == seq1 or seq2.lower() == seq1 or seq2.capitalize() == seq1:
-    #             return True
-    #         return False
-        
-    #     def get_nli_relation(prompt_text, question, output_text):
-            
-    #         # === Prapare inputs
-    #         doc_text = prompt_text.split('Document:')[-1].split('Question:')[0]
-    #         answer_ = f"{question} {output_text}"
-            
-    #         # === Common NLI: Similar to semantic semilarity
-    #         input = doc_text + ' [SEP] ' + answer_
-    #         encoded_input = semantic_tokenizer.encode(input, padding=True)
-    #         prediction = semantic_model(torch.tensor(torch.tensor([encoded_input]), device=args.device))['logits']
-    #         predicted_label = torch.argmax(prediction, dim=1)
-            
-    #         reverse_input = answer_ + ' [SEP] ' + doc_text
-    #         encoded_reverse_input = semantic_tokenizer.encode(reverse_input, padding=True)
-    #         reverse_prediction = semantic_model(torch.tensor(torch.tensor([encoded_reverse_input]), device=args.device))['logits']
-    #         reverse_predicted_label = torch.argmax(reverse_prediction, dim=1)
-            
-    #         # === Get label
-    #         nli_label = 0 if (0 in predicted_label or 0 in reverse_predicted_label) else 2            
-    #         prediction_dist = torch.softmax(prediction, dim=1).tolist()[0]
-    #         reverse_prediction_dist = torch.softmax(reverse_prediction, dim=1).tolist()[0]
-    #         entail_score = max(prediction_dist[1], prediction_dist[2], reverse_prediction_dist[1], reverse_prediction_dist[2])
-    #         contradict_score = max(prediction_dist[0], reverse_prediction_dist[0])
-            
-    #         return (nli_label, entail_score)
-        
-    #     def get_axiom_number(answer_equality, nli_main, nli_sec):
-    #         axiom_num = 'others'
-    #         if answer_equality and nli_main[0] == 2:
-    #             axiom_num = '1'
-    #         if answer_equality and nli_main[0] == 0:
-    #             axiom_num = '2'
-    #         if not answer_equality and nli_main[0] == 2 and nli_sec[0] == 0:
-    #             axiom_num = '4'
-    #         if not answer_equality and nli_main[0] == 0 and nli_sec[0] == 2:
-    #             axiom_num = '5'
-            
-    #         return axiom_num
-        
-    #     def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
-    #         C1 = 0.5
-    #         C2 = 0.4
-    #         C3 = 0.1 
-    #         first_part = 1.0 if answer_equality else 0.0
-    #         return C1*first_part + C2*nli_main[1] + C3*nli_sec[1]
-            
-            
-            
-        
-    #     common_ids = pd.merge(result_df_main_prompt, result_df_second_prompt, on='id')['id']
-    #     result_df_main_prompt_filtered = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)]
-    #     result_df_second_prompt_filtered = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)]
-        
-    #     result_df_main_prompt_filtered['answer_equality'] = [
-    #         get_output_equality(seq1, seq2)
-    #         for seq1, seq2 in tqdm(zip(
-    #             result_df_main_prompt_filtered['cleaned_most_likely_generation'], 
-    #             result_df_second_prompt_filtered['cleaned_most_likely_generation']
-    #         ), desc='Getting output equality ...')
-    #     ]
-        
-    #     result_df_main_prompt_filtered['nli_relation_main'] = [
-    #         get_nli_relation(prompt_text, question, output)
-    #         for prompt_text, question, output in tqdm(zip(
-    #             result_df_main_prompt_filtered['prompt_text'],
-    #             result_df_main_prompt_filtered['question'],
-    #             result_df_main_prompt_filtered['cleaned_most_likely_generation']
-    #         ), desc='Getting NLI relations (main) ...')
-    #     ]
-        
-    #     result_df_main_prompt_filtered['nli_relation_second'] = [
-    #         get_nli_relation(prompt_text, question, output)
-    #         for prompt_text, question, output in tqdm(zip(
-    #             result_df_main_prompt_filtered['prompt_text'],
-    #             result_df_main_prompt_filtered['question'],
-    #             result_df_second_prompt_filtered['cleaned_most_likely_generation']
-    #         ), desc='Getting NLI relations (second) ...')
-    #     ]
-        
-    #     result_df_main_prompt_filtered['axiom_num'] = [
-    #         get_axiom_number(answer_equality, nli_main, nli_sec)
-    #         for answer_equality, nli_main, nli_sec in tqdm(zip(
-    #             result_df_main_prompt_filtered['answer_equality'],
-    #             result_df_main_prompt_filtered['nli_relation_main'],
-    #             result_df_main_prompt_filtered['nli_relation_second']
-    #         ), desc='Getting axiom number ...')
-    #     ]
-        
-    #     result_df_main_prompt_filtered['axiomatic_coef'] = [
-    #         get_axiomatic_coef(answer_equality, nli_main, nli_sec)
-    #         for answer_equality, nli_main, nli_sec in tqdm(zip(
-    #             result_df_main_prompt_filtered['answer_equality'],
-    #             result_df_main_prompt_filtered['nli_relation_main'],
-    #             result_df_main_prompt_filtered['nli_relation_second']
-    #         ), desc='Getting axiomatic coef. ...')
-    #     ]
-        
-    #     print(result_df_main_prompt_filtered[['id', 'exact_match', 'cleaned_most_likely_generation', 'answer_equality', 'nli_relation_main', 'nli_relation_second', 'axiom_num', 'axiomatic_coef']])
-    #     print('\n')
-    #     print(result_df_second_prompt_filtered[['id', 'exact_match', 'cleaned_most_likely_generation']])
-
+        # switch_main = 1.0 if nli_main[0]==2 else 0.0
+        # switch_2ed = 1.0 if nli_sec[0]==2 else 0.0
+        # return C1*answer_equality_nli[1] + C2*switch_main*nli_main[1] + C3*switch_2ed*nli_sec[1]
+        return C1*answer_equality_nli[1] + C2*nli_main[1]
+    
     def plot_roc_correctness_vs_uncertainty(correctness, uncertainty, prefix):
         
         # Compute False Positive Rate (FPR), True Positive Rate (TPR), and thresholds
@@ -503,18 +400,33 @@ def get_calibration_results(args):
         result_dict['correctness'] = correctness_results
         
         # Get uncertainty
-        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
+        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
             
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             
-            for type_ in ['normal', 'calibrated']:
+            for type_ in ['normal']: # 'calibrated'
                 
                 if type_ == 'calibrated':
                     label_ = f"{uncertainty_model}_calibrated"
-                    result_df_main_prompt[f'calibrated_{unc_model_key_main_prompt}'] = (
-                        (1.5 - result_df_main_prompt['axiomatic_coef'])*result_df_main_prompt[unc_model_key_main_prompt]
-                    )
-                    uncertainty_values = result_df_main_prompt[f"calibrated_{unc_model_key_main_prompt}"]
+                    # result_df_main_prompt[f'calibrated_{unc_model_key_main_prompt}'] = (
+                    #     (1.5 - result_df_main_prompt['axiomatic_coef'])*result_df_main_prompt[unc_model_key_main_prompt]
+                    # )
+                    print(f"Coefs.: {(0.3, 0.7)}")
+                    result_df_main_prompt['axiomatic_coef'] = [
+                        get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6))
+                        for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
+                            result_df_main_prompt['answer_equality_nli'],
+                            result_df_main_prompt['nli_relation_main'],
+                            result_df_main_prompt['nli_relation_second']
+                        ), desc='Getting axiomatic coef. ...')
+                    ]
+                    filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num'].isin(['1', '2', '4', '5'])]
+                    mean_value = filtered_df['axiomatic_coef'].mean()
+                    std_value = filtered_df['axiomatic_coef'].std()
+                    
+                    result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"] = (1.0+mean_value - result_df_main_prompt['axiomatic_coef']) * result_df_main_prompt[unc_model_key_main_prompt]                    
+                    uncertainty_values = result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"]
+                    # uncertainty_values = result_df_main_prompt[f"calibrated_{unc_model_key_main_prompt}"]
                 else:
                     label_ = f"{uncertainty_model}"
                     uncertainty_values = result_df_main_prompt[f"{unc_model_key_main_prompt}"]
@@ -568,7 +480,8 @@ def get_calibration_results(args):
             #     result_dict[uncertainty_model]['RCE'], prefix=uncertainty_model,
             #     num_bins=30
             # )
-            
+        
+        print(result_dict)
         # Save the calibration result
         def convert_to_serializable(obj):
             if isinstance(obj, np.float32):
@@ -591,18 +504,17 @@ def get_calibration_results(args):
         run_calibration_metrics(prompt_order)
     
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

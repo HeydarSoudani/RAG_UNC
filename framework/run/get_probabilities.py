@@ -35,12 +35,12 @@ def get_probability(args):
     # === Files ======================================
     model = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     
-    base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__{args.main_prompt_format}'
+    base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.second_prompt_format}__{args.main_prompt_format}'
     if not os.path.isdir(base_dir_2ed):
         temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
-        base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.second_prompt_format}__{temp}'
+        base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.second_prompt_format}__{temp}'
     
     # inputs
     sequence_input_main = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
