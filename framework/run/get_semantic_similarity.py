@@ -33,9 +33,9 @@ def get_similarity(args):
     # === Define output files =============
     # === Read the generated data =========
     model_ = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
-    generation_file = f'{base_dir}/{model_}_cleaned_generation_{args.generation_type}.pkl'
-    similarities_output_file = f'{base_dir}/{model_}_similarities_generation.pkl'
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    generation_file = f'{base_dir}/cleaned_generation_{args.generation_type}.pkl'
+    similarities_output_file = f'{base_dir}/similarities_generation.pkl'
     
     with open(generation_file, 'rb') as infile:
         sequences = pickle.load(infile)
@@ -110,7 +110,8 @@ def get_similarity(args):
         phrase_ind  = 0
         i = 0
         answer = answer.strip()
-
+        print(answer)
+        print(phrases)
         while(i < len(answer)):
             last_token_place  = -1
             for j in range(i+1, len(answer)+1):
@@ -269,7 +270,7 @@ def get_similarity(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
@@ -277,10 +278,10 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative'
     ])
     

@@ -27,14 +27,14 @@ def get_correctness(args):
     """.replace('   ', ''))
 
     # === Define output file ========================
-    model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    model_ = args.model.split('/')[-1]
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
-    sequence_input = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
-    similarities_file = f'{base_dir}/{model}_similarities_generation.pkl'
+    sequence_input = f'{base_dir}/cleaned_generation_{args.generation_type}.pkl'
+    similarities_file = f'{base_dir}/similarities_generation.pkl'
     # outputs
-    correctness_output_file = f'{base_dir}/{model}_correctness.pkl'
-    correctness_output_jsonl_file = f'{base_dir}/{model}_correctness.jsonl'
+    correctness_output_file = f'{base_dir}/correctness.pkl'
+    correctness_output_jsonl_file = f'{base_dir}/correctness.jsonl'
     
     with open(sequence_input, 'rb') as infile:
         sequences = pickle.load(infile)

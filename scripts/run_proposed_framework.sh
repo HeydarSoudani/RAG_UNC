@@ -18,28 +18,47 @@ module load Java/11.0.2
 # srun python $HOME/RAG_UNC/processed_datasets/_corpus_preparation.py
 # srun python processed_datasets/_contriever_retrieval_model.py
 
-# model="meta-llama/Llama-2-7b-chat-hf"
-# dataset="nqgold"
-# subsec="validation"
-# main_prompt_format="bm25_retriever_top1"
-# second_prompt_format="only_q"
-# fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
-# run_id="run_0"
-# generation_type="normal"
-# alpha_generation=0.5
-# alpha_probability=0.5
+
+# prompt_format:
+    # 'only_q', 'q_negative', 'q_positive', 'q_conflict'
+    # 'bm25_retriever_top1', 'bm25_retriever_top5',
+    # 'contriever_retriever_top1', 'contriever_retriever_top5',
+    # 'rerank_retriever_top1', 'rerank_retriever_top5'
+
+# Datasets:
+    # 'nqgold',
+    # 'webquestions', 'trivia', 'nq', 'squad1',
+    # 'hotpotqa', '2wikimultihopqa', 'musique'
+    # 'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
+
+# Model name:
+    # Qwen2.5: Qwen/Qwen2.5-7B-Instruct
+    # Mistral: mistralai/Mistral-7B-Instruct-v0.3
+    # llama2: "meta-llama/Llama-2-7b-chat-hf"
+    # llama3.1: "meta-llama/Llama-3.1-8B-Instruct"  --> pip install --upgrade transformers
+
 
 model="meta-llama/Llama-2-7b-chat-hf"
-dataset="trivia"
-subsec="validation"
+dataset="nqgold"
+subsec="test"
 main_prompt_format="only_q"
 second_prompt_format="q_positive"
-fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057/0.340,  | popqa 0.035
+fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
 run_id="run_0"
 generation_type="normal"
 alpha_generation=0.5
 alpha_probability=0.5
 
+# model="meta-llama/Llama-2-7b-chat-hf"
+# dataset="trivia"
+# subsec="validation"
+# main_prompt_format="only_q"
+# second_prompt_format="q_positive"
+# fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057/0.340,  | popqa 0.035
+# run_id="run_0"
+# generation_type="normal"
+# alpha_generation=0.5
+# alpha_probability=0.5
 
 # model="meta-llama/Llama-2-7b-chat-hf"
 # dataset="popqa"
@@ -68,36 +87,13 @@ srun python $HOME/RAG_UNC/framework/run/run_framework.py \
 
 
 
-# generation_type:
-    # 'normal', 'cad'
 
-# prompt_format:
-    # 'only_q', 'q_negative', 'q_positive', 'q_conflict'
-    # 'bm25_retriever_top1', 'bm25_retriever_top5',
-    # 'contriever_retriever_top1', 'contriever_retriever_top5',
-    # 'rerank_retriever_top1', 'rerank_retriever_top5'
-
-# Datasets:
-    # 'nqgold',
-    # 'webquestions', 'trivia', 'nq', 'squad1',
-    # 'hotpotqa', '2wikimultihopqa', 'musique'
-    # 'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
-
-# Model name:
-    # Mistral: mistralai/Mistral-7B-Instruct-v0.3
-    # llama2: "meta-llama/Llama-2-7b-chat-hf"
-    
-    # tiny_llama: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    # stable_lm2: "stabilityai/stablelm-2-zephyr-1_6b"
-    # MiniCPM: "openbmb/MiniCPM-2B-sft-fp32"
-
-    # mistral: "mistralai/Mistral-7B-Instruct-v0.1"
-    # zephyr: "HuggingFaceH4/zephyr-7b-beta"
-    # 
-    # llama3: "meta-llama/Meta-Llama-3-8B-Instruct"
 
 # mode:
     # 'seperated', 'combined'
+
+# generation_type:
+    # 'normal', 'cad'
 
 
 

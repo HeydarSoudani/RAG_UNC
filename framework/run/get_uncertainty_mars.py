@@ -23,13 +23,13 @@ def get_uncertainty_mars(args):
     llh_shift = torch.tensor(5.0) # does not effect anything
 
     # === Define/Read In/Out files ========================
-    model = args.model.split('/')[-1]
+    model_ = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
-    likelihoods_file = f'{base_dir}/{generation_type}/{model}_likelihoods_generation.pkl'
+    likelihoods_file = f'{base_dir}/{generation_type}/likelihoods_generation.pkl'
     # outputs
-    uncertainty_output_file = f'{base_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
+    uncertainty_output_file = f'{base_dir}/{generation_type}/uncertainty_mars_generation.pkl'
 
     with open(likelihoods_file, 'rb') as infile:
         likelihoods = pickle.load(infile)
@@ -39,7 +39,6 @@ def get_uncertainty_mars(args):
         """Compute predictive entropy of approximate posterior predictive"""
         mean_across_models = torch.logsumexp(log_likelihoods, dim=0) - torch.log(torch.tensor(log_likelihoods.shape[0]))
         entropy = -torch.sum(mean_across_models, dim=1) / torch.tensor(mean_across_models.shape[1])
-        
         return entropy
     
     def get_predictive_entropy_over_concepts(log_likelihoods, semantic_set_ids):
@@ -59,9 +58,6 @@ def get_uncertainty_mars(args):
             aggregated_likelihoods = torch.tensor(aggregated_likelihoods) - llh_shift
             entropy = - torch.sum(aggregated_likelihoods, dim=0) / torch.tensor(aggregated_likelihoods.shape[0])
             entropies.append(entropy)
-
-        # print(torch.tensor(entropies))
-
         return torch.tensor(entropies)
     
     def get_overall_log_likelihoods(list_of_results):
@@ -70,7 +66,6 @@ def get_uncertainty_mars(args):
         returns: dictionary with keys: 'neg_log_likelihoods', 'average_neg_log_likelihoods'
                 that contains tensors of shape (num_models, num_generations, num_samples_per_generation)
         """
-
         result_dict = {}
         geometric_dict ={}
 

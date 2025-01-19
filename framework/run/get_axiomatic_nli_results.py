@@ -34,24 +34,22 @@ def get_axiomatic_results(args):
     """.replace('        ', ''))
     
     # === Define output files ===================
-    model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/'
+    model_ = args.model.split('/')[-1]
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
     
-    
     # === For getting equal outputs =============
-    sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/cleaned_generation_{args.generation_type}.pkl'
     if os.path.isdir(f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}'):
-        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}/cleaned_generation_normal.pkl'
     else:
         temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
-        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{temp}/{model}_cleaned_generation_normal.pkl'
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{temp}/cleaned_generation_normal.pkl'
     
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
     with open(sequence_input_secondry, 'rb') as infile:
         sequences_secondry = pickle.load(infile)
-        
         
     # === Load semantic model ===================
     # - Labels: {0: Contradiction, 1: Neutral, 2: Entailment}
@@ -62,7 +60,6 @@ def get_axiomatic_results(args):
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
     semantic_model.eval()
-    
     
     # === Functions =============================
     keys_mapping = {

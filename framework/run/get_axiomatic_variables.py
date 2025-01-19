@@ -29,14 +29,14 @@ def get_axiomatic_variables(args):
     """.replace('        ', ''))
     
     # === Define output files ===================
-    model = args.model.split('/')[-1]
+    model_ = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}'
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}'
     
     # inputs
-    sequence_input = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/cleaned_generation_{args.generation_type}.pkl'
     # outputs
-    axiomatic_variables_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/{model}_axiomatic_variables.pkl'
+    axiomatic_variables_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_variables.pkl'
     
     with open(sequence_input, 'rb') as infile:
         sequences = pickle.load(infile)

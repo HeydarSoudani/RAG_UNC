@@ -9,7 +9,6 @@ import argparse
 from answers_generation import generation
 from answers_generation_cad import generation_cad
 from get_semantic_similarity import get_similarity
-from get_groundedness import get_groundedness
 from get_probabilities import get_probability
 from get_likelihoods_mars import get_likelihoods_mars
 
@@ -95,19 +94,17 @@ if __name__ == "__main__":
     
     # ## === Phase 2: Uncertainty computation
     get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
-    # # get_groundedness(args)
     get_probability(args)
     get_likelihoods_mars(args)
     
     get_uncertainty_mars(args)
     # get_uncertainty_bb(args)
-    # # TODO: sar_uncertainty
-    # # get_uncertainty_sar(args)
+    # get_uncertainty_sar(args) # TODO: sar_uncertainty
     
-    ## === Phase 3: correctness and results
+    ## === Phase 3: correctness and calibration results
     get_correctness(args)
     get_axiomatic_variables(args)
-    # get_calibration_results(args)
+    get_calibration_results(args)
     # get_axiomatic_results(args)
     
     

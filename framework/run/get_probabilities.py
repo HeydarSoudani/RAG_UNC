@@ -33,21 +33,21 @@ def get_probability(args):
     ALPHA_DIFFERENCE = 1.0
     
     # === Files ======================================
-    model = args.model.split('/')[-1]
+    model_ = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     
-    base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.second_prompt_format}__{args.main_prompt_format}'
+    base_dir_2ed = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.second_prompt_format}__{args.main_prompt_format}'
     if not os.path.isdir(base_dir_2ed):
         temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
-        base_dir_2ed = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.second_prompt_format}__{temp}'
+        base_dir_2ed = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.second_prompt_format}__{temp}'
     
     # inputs
-    sequence_input_main = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
-    sequence_input_secondry = f'{base_dir_2ed}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_main = f'{base_dir}/cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_secondry = f'{base_dir_2ed}/cleaned_generation_{args.generation_type}.pkl'
     # outputs
-    probabilities_output_file = f'{base_dir}/{generation_type}/{model}_probabilities_generation.pkl'
-    probabilities_output_jsonl_file = f'{base_dir}/{generation_type}/{model}_probabilities_generation.jsonl' 
+    probabilities_output_file = f'{base_dir}/{generation_type}/probabilities_generation.pkl'
+    probabilities_output_jsonl_file = f'{base_dir}/{generation_type}/probabilities_generation.jsonl' 
     os.makedirs(f'{base_dir}/{generation_type}', exist_ok=True)
     
     with open(sequence_input_main, 'rb') as infile:

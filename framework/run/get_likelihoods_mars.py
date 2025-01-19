@@ -27,15 +27,15 @@ def get_likelihoods_mars(args):
 
     # === Define output file ========================
     # === Read the generation & similarities data ===
-    model = args.model.split('/')[-1]
+    model_ = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
     # inputs
-    sequence_input = f'{base_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
-    similarities_file = f'{base_dir}/{model}_similarities_generation.pkl'
-    probabilities_file = f'{base_dir}/{generation_type}/{model}_probabilities_generation.pkl'
+    sequence_input = f'{base_dir}/cleaned_generation_{args.generation_type}.pkl'
+    similarities_file = f'{base_dir}/similarities_generation.pkl'
+    probabilities_file = f'{base_dir}/{generation_type}/probabilities_generation.pkl'
     # outputs
-    likelihoods_output_file = f'{base_dir}/{generation_type}/{model}_likelihoods_generation.pkl'
+    likelihoods_output_file = f'{base_dir}/{generation_type}/likelihoods_generation.pkl'
     
 
     with open(sequence_input, 'rb') as infile:
@@ -127,9 +127,6 @@ def get_likelihoods_mars(args):
     result = []
     ids = []
     for i, sample in tqdm(enumerate(sequences)):
-        # if i == 50:
-        #     break
-        
         result_dict = {}
         id_ = sample['id']
         ids.append(id_)
@@ -168,6 +165,7 @@ def get_likelihoods_mars(args):
         average_neg_log_likelihoods_importance_mean_fifth_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_max_fifth_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_min_fifth_prompt = torch.zeros((generations.shape[0],))
+        
         
         ### = For generations ===============================
         for generation_index in range(generations.shape[0]):
@@ -314,9 +312,8 @@ def get_likelihoods_mars(args):
                 average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = score
                 average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = score
-            
-
-
+        
+        
         ### = For most-likely ===============================
         if len(sample['cleaned_most_likely_generation_ids']) > 0:
             _generation_most_likely = generation_most_likely[generation_most_likely != tokenizer.pad_token_id]
@@ -460,8 +457,7 @@ def get_likelihoods_mars(args):
                 most_likely_model_output_loss_importance_mean_fifth_prompt = score
                 most_likely_model_output_loss_importance_max_fifth_prompt = score
                 most_likely_model_output_loss_importance_min_fifth_prompt = score
-            
-            
+                
         else:
             score = 100000
             most_likely_model_output_loss_main_prompt = score
@@ -549,6 +545,7 @@ def get_likelihoods_mars(args):
         result_dict['most_likely_neg_log_likelihoods_importance_min_fifth_prompt'] = most_likely_model_output_loss_importance_min_fifth_prompt
         
         result.append(result_dict)
+    
     
     ### === Save the likelihoods result ==============
     with open(likelihoods_output_file, 'wb') as ofile:

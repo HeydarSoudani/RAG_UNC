@@ -36,18 +36,16 @@ def get_calibration_results(args):
     
     # === Define output files ===================
     # archive_500samples
-    model = args.model.split('/')[-1]
+    model_ = args.model.split('/')[-1]
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}'
-    
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}'
     
     # === Load semantic model ===================
     # - Labels: {0: Contradiction, 1: Neutral, 2: Entailment}
     semantic_model_name = "microsoft/deberta-large-mnli"
     semantic_model = AutoModelForSequenceClassification.from_pretrained(semantic_model_name).to(args.device)
     semantic_tokenizer = AutoTokenizer.from_pretrained(semantic_model_name)
-    semantic_model.eval()    
-    
+    semantic_model.eval()
     
     # === Define functions =======================
     keys_mapping = {
@@ -497,7 +495,7 @@ def get_calibration_results(args):
         
     # === Main loop ==============================
     for prompt_order in ['main']: # 'main', 'second', 'third'
-        calibration_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/{model}_calibration_results.jsonl'
+        calibration_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/calibration_results_{prompt_order}_prompt/calibration_results.jsonl'
         calibration_output_dir = os.path.dirname(calibration_output_file)
         os.makedirs(calibration_output_dir, exist_ok=True)
         
