@@ -92,10 +92,10 @@ def get_calibration_results(args):
             temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
             results_dir = f'{base_dir}/{main_prompt_format}__{temp}'
         
-        generation_file = f'{results_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
-        similarities_input_file = f'{results_dir}/{model}_similarities_generation.pkl'
-        correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
-        uncertainty_mars_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
+        generation_file = f'{results_dir}/cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{results_dir}/similarities_generation.pkl'
+        correctness_input_file = f'{results_dir}/correctness.pkl'
+        uncertainty_mars_input_file = f'{results_dir}/{generation_type}/uncertainty_mars_generation.pkl'
         
         
         with open(generation_file, 'rb') as infile:
@@ -154,7 +154,7 @@ def get_calibration_results(args):
 
         # 
         if main_prompt_format != 'only_q':
-            axiomatic_variables_input_file = f'{results_dir}/{generation_type}/{model}_axiomatic_variables.pkl'
+            axiomatic_variables_input_file = f'{results_dir}/{generation_type}/axiomatic_variables.pkl'
             with open(axiomatic_variables_input_file, 'rb') as f:
                 axiomatic_variables_results  = pickle.load(f)
             axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
@@ -402,14 +402,14 @@ def get_calibration_results(args):
             
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             
-            for type_ in ['normal']: # 'calibrated'
+            for type_ in ['normal', 'calibrated']: #
                 
                 if type_ == 'calibrated':
                     label_ = f"{uncertainty_model}_calibrated"
                     # result_df_main_prompt[f'calibrated_{unc_model_key_main_prompt}'] = (
                     #     (1.5 - result_df_main_prompt['axiomatic_coef'])*result_df_main_prompt[unc_model_key_main_prompt]
                     # )
-                    print(f"Coefs.: {(0.3, 0.7)}")
+                    # print(f"Coefs.: {(0.3, 0.7)}")
                     result_df_main_prompt['axiomatic_coef'] = [
                         get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6))
                         for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
@@ -418,7 +418,7 @@ def get_calibration_results(args):
                             result_df_main_prompt['nli_relation_second']
                         ), desc='Getting axiomatic coef. ...')
                     ]
-                    filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num'].isin(['1', '2', '4', '5'])]
+                    filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num_nli'].isin(['1', '2', '4', '5'])]
                     mean_value = filtered_df['axiomatic_coef'].mean()
                     std_value = filtered_df['axiomatic_coef'].std()
                     
@@ -505,14 +505,14 @@ def get_calibration_results(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

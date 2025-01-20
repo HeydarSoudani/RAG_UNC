@@ -30,18 +30,18 @@ def get_axiomatic_results(args):
     """.replace('        ', ''))
     
     # === Define output files ===================
-    model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.subsec}/{args.run_id}/'
+    model_ = args.model.split('/')[-1]
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/'
     generation_type = f"prob_alpha_{str(args.alpha_probability)}"
 
     
     # === For getting equal outputs =============
-    sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{model}_cleaned_generation_{args.generation_type}.pkl'
+    sequence_input_main = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/cleaned_generation_{args.generation_type}.pkl'
     if os.path.isdir(f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}'):
-        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}/{model}_cleaned_generation_normal.pkl'
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{args.main_prompt_format}/cleaned_generation_normal.pkl'
     else:
         temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
-        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{temp}/{model}_cleaned_generation_normal.pkl'
+        sequence_input_secondry = f'{base_dir}/{args.second_prompt_format}__{temp}/cleaned_generation_normal.pkl'
     
     with open(sequence_input_main, 'rb') as infile:
         sequences_main = pickle.load(infile)
@@ -91,10 +91,10 @@ def get_axiomatic_results(args):
             temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
             results_dir = f'{base_dir}/{main_prompt_format}__{temp}'
         
-        generation_file = f'{results_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
-        similarities_input_file = f'{results_dir}/{model}_similarities_generation.pkl'
-        correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
-        likelihoods_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
+        generation_file = f'{results_dir}/cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{results_dir}/similarities_generation.pkl'
+        correctness_input_file = f'{results_dir}/correctness.pkl'
+        likelihoods_input_file = f'{results_dir}/{generation_type}/uncertainty_mars_generation.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -361,7 +361,7 @@ def get_axiomatic_results(args):
         print(f"Main: {len(result_df_main_prompt)}")
         print(f"2ed:  {len(result_df_second_prompt)}")
         
-        answers_equality_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/{model}_answers_equality_output.jsonl'
+        answers_equality_output_file = f'{base_dir}/{args.main_prompt_format}__{args.second_prompt_format}/{generation_type}/axiomatic_results_{prompt_order}/answers_equality_output.jsonl'
         answers_equality_output_dir = os.path.dirname(answers_equality_output_file)
         os.makedirs(answers_equality_output_dir, exist_ok=True)
         

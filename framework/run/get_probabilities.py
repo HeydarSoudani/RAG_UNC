@@ -17,11 +17,11 @@ from utils.utils import set_seed
 def get_probability(args):
     print("\n--- Phase 2: Getting Probability ...")
     print(f"""
-        Alpha Prob.:   {args.alpha_probability}
         Model name:    {args.model}
         Dataset:       {args.dataset}
         Prompt (1st):  {args.main_prompt_format}
         Prompt (2ed):  {args.second_prompt_format}
+        Alpha Prob.:   {args.alpha_probability}
         Run id:        {args.run_id}
         Seed:          {args.seed}
     """.replace('      ', ''))
@@ -437,7 +437,7 @@ def get_probability(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
@@ -445,7 +445,7 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -475,7 +475,7 @@ if __name__ == "__main__":
     
     parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
     parser.add_argument('--alpha_generation', type=float, default=0.5)
-    parser.add_argument('--alpha_probability', type=float, default=-1.0)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)

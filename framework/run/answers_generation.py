@@ -62,38 +62,31 @@ def generation(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
     
     if tokenizer.__class__.__name__ == 'LlamaTokenizer':
-        #eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.']] + [29889]  # seems to be '.' as well
         eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n']] + [29889]  # seems to be '.' as well
         if 'mistral' in args.model:
             eos_token_id += [28723]
             print('added additional eos token')
-        #eos_token_id = [tokenizer(_)['input_ids'] for _ in ['\n', ',', '.']]
+    elif tokenizer.__class__.__name__ == 'PreTrainedTokenizerFast':
+        eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n', '\n\n', ')\n\n', 'Document', ' \n\n', ':\n']] # this is for llama3.1
+        eos_token_id += [691]
+    elif tokenizer.__class__.__name__ == 'Qwen2Tokenizer':  # Add Qwen support
+        eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n', '\n\n', ')\n\n', 'Document', ' \n\n', ':\n']] + [271]  # Standard tokens
+        eos_token_id += [tokenizer.encode('</s>')[-1], tokenizer.encode('<|endoftext|>')[-1]]  # Qwen EOS tokens
     elif tokenizer.__class__.__name__ == 'GPT2Tokenizer':
         eos_token_id = [tokenizer.encode(_)[1] for _ in ['.', '\n']]
-    elif tokenizer.__class__.__name__ == 'PreTrainedTokenizerFast':
-        eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n']]
-        eos_token_id += [691]
     elif tokenizer.__class__.__name__ == 'CodeGenTokenizer':
         eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.']]
         #eos_token_id += [691]
-    elif tokenizer.__class__.__name__ == 'QwenTokenizer':  # Add Qwen support
-        eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n']]  # Standard tokens
-        eos_token_id += [tokenizer.encode('</s>')[-1], tokenizer.encode('<|endoftext|>')[-1]]  # Qwen EOS tokens
-    elif 'qwen' in tokenizer.__class__.__name__.lower():  # More general check for Qwen models
-        eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n']]
-        eos_token_id += [tokenizer.encode('</s>')[-1], tokenizer.encode('<|endoftext|>')[-1]]  # Qwen EOS tokens
-    
     else:
         raise NotImplementedError
     
+    if tokenizer.__class__.__name__ in ['PreTrainedTokenizerFast', 'Qwen2Tokenizer']:
+        tokenizer.add_special_tokens({"additional_special_tokens": ['"']})
+
     eos_token_id += [tokenizer.eos_token_id]
     period_token_id = tokenizer('. ')['input_ids'][1]
     eos_tokens = ['Question:', ' Question:', '\n', 'Answer:', ' Answer:', 'Q:']
     question_framing_ids = [[tokenizer(eos_token)['input_ids'][-1]] for eos_token in eos_tokens]
-
-    print(eos_token_id)
-    print([tokenizer.decode(id) for id in eos_token_id])
-    print(tokenizer.__class__.__name__)  
 
     # === Setup dataset ==========================
     Dataset = single_hop.RAGDataset(tokenizer, args.main_prompt_format, args.dataset, args.subsec)
@@ -119,7 +112,7 @@ def generation(args):
     ### === Generation loop ====================== 
     with torch.no_grad():
         sequences = []
-        for idx, batch in tqdm(enumerate(dataloader)):        
+        for idx, batch in tqdm(enumerate(dataloader)):
             
             # === Generate multiple time ==========
             generations = torch.ones(
@@ -130,7 +123,6 @@ def generation(args):
             
             input_ids = batch['input_ids'].to(args.device).reshape(1, -1)
             for i in range(args.num_generations_per_prompt):
-                
                 generation = model.generate(
                     input_ids,
                     do_sample=True,
@@ -166,6 +158,12 @@ def generation(args):
                 ) # We already skip special tokens
             sequence_dict['generated_texts'] = generated_texts
             
+            # print(generations[1])
+            # print([tokenizer.decode([id]) for id in generations[1]])
+            # print(generated_texts[1])
+            # print(generated_texts)
+            # print('\n')
+            
             # === Generate most likely =============
             input_ids = batch['input_ids'].to(args.device).reshape(1, -1)
             if args.decoding_method == 'beam_search':
@@ -199,7 +197,6 @@ def generation(args):
                 most_likely_generation[0, len(input_ids[0]):], skip_special_tokens=True
             )
             sequences.append(sequence_dict)
-            # print(sequence_dict['generated_texts'])
 
             ### === Save the result ====================== 
             if idx % 50 == 0:
@@ -256,7 +253,7 @@ def generation(args):
                 sample['cleaned_generations'] = cleaned_generations
                 cleaned_sequences.append(sample)
     
-    print(cleaned_sequences)
+    # print(cleaned_sequences)
     print(len(cleaned_sequences))
     ### === Save the sequences result ============
     with open(cleaned_sequences_output_file, 'wb') as ofile:
@@ -267,7 +264,7 @@ def generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq', 'nqswap',
@@ -291,7 +288,7 @@ if __name__ == "__main__":
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.003)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.004)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     

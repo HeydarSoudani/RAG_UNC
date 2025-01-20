@@ -110,8 +110,6 @@ def get_similarity(args):
         phrase_ind  = 0
         i = 0
         answer = answer.strip()
-        print(answer)
-        print(phrases)
         while(i < len(answer)):
             last_token_place  = -1
             for j in range(i+1, len(answer)+1):

@@ -57,10 +57,10 @@ def get_axiomatic_variables(args):
             temp = 'bm25_retriever_top1' if args.dataset == 'popqa' else 'q_positive'
             results_dir = f'{base_dir}/{main_prompt_format}__{temp}'
         
-        generation_file = f'{results_dir}/{model}_cleaned_generation_{args.generation_type}.pkl'
-        similarities_input_file = f'{results_dir}/{model}_similarities_generation.pkl'
-        correctness_input_file = f'{results_dir}/{model}_correctness.pkl'
-        uncertainty_mars_input_file = f'{results_dir}/{generation_type}/{model}_uncertainty_mars_generation.pkl'
+        generation_file = f'{results_dir}/cleaned_generation_{args.generation_type}.pkl'
+        similarities_input_file = f'{results_dir}/similarities_generation.pkl'
+        correctness_input_file = f'{results_dir}/correctness.pkl'
+        uncertainty_mars_input_file = f'{results_dir}/{generation_type}/uncertainty_mars_generation.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -356,15 +356,15 @@ def get_axiomatic_variables(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test', 'validation'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',
