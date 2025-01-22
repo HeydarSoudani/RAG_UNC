@@ -39,26 +39,11 @@ def generation(args):
     os.makedirs(os.path.dirname(sequences_output_file), exist_ok=True)
     
     # === Model definition ======================
-    # if model_ == "Llama-3.1-8B-Instruct":
-    #     print(model_)
-    #     rope_scaling = {
-    #         "type": "linear",  # or "dynamic"
-    #         "factor": 8.0
-    #     }
-        
-    #     model = AutoModelForCausalLM.from_pretrained(
-    #         args.model,
-    #         torch_dtype=torch.float16,
-    #         device_map="auto",
-    #         rope_scaling=rope_scaling
-    #     )
-    # else:
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=torch.float16,
         device_map="auto"
     )
-    
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
     
     if tokenizer.__class__.__name__ == 'LlamaTokenizer':
@@ -107,7 +92,6 @@ def generation(args):
 
     questions = train_dataset
     dataloader = torch.utils.data.DataLoader(questions, batch_size=1)
-    
     
     ### === Generation loop ====================== 
     with torch.no_grad():
@@ -212,9 +196,17 @@ def generation(args):
 
     ### === Loop for cleaning the generated data =
     # = Second file in the main code =  
+    # generation_file = f'{base_dir}/generation_{args.generation_type}.pkl'
+    # with open(generation_file, 'rb') as infile:
+    #     sequences = pickle.load(infile)
+    
+    
+    patterns_to_remove = ['\.', '\n', '\n\n', '\)\n\n', 'Document', ' \n\n', ':\n', '\n\nDocument']
+    pattern = r"(?:{})+$".format("|".join(map(re.escape, patterns_to_remove)))
+    
     print('Cleaning the generated data ...')
     cleaned_sequences = []
-    for sample in tqdm(sequences):
+    for idx, sample in tqdm(enumerate(sequences)):
         discard = False
         cleaned_generations = torch.ones_like(sample['generations'])
         question = sample['question']
@@ -223,6 +215,10 @@ def generation(args):
         
         max_len_of_generations = cleaned_generations.shape[-1]
         generated_text = sample['most_likely_generation']
+        generated_text_cleaned_1 = re.sub(pattern, '', generated_text)
+        generated_text_cleaned_1 = generated_text_cleaned_1.replace('"', '')
+        generated_text_cleaned_1 = re.sub(r'\s*,\s*', ' ', generated_text_cleaned_1)
+        generated_text = generated_text_cleaned_1
         generated_text_cleaned = re.sub(r'[^\x00-\x7f]',r'', generated_text)
         
         if generated_text_cleaned == generated_text:
@@ -235,9 +231,16 @@ def generation(args):
             sample['cleaned_most_likely_generation_ids'] =  clean_ids
 
             for i, generated_text in enumerate(generated_texts):
-
+                
+                # ===
+                generated_text_cleaned_1 = re.sub(pattern, '', generated_text)
+                generated_text_cleaned_1 = generated_text_cleaned_1.replace('"', '')
+                generated_text_cleaned_1 = re.sub(r'\s*,\s*', ' ', generated_text_cleaned_1)
+                generated_text = generated_text_cleaned_1
                 generated_text_cleaned = re.sub(r'[^\x00-\x7f]',r'', generated_text)
+                
                 if generated_text_cleaned != generated_text:
+                # if generated_text_cleaned != generated_text:
                     discard = True
                     break
 
@@ -253,6 +256,9 @@ def generation(args):
                 sample['cleaned_generations'] = cleaned_generations
                 cleaned_sequences.append(sample)
     
+            # print(idx)
+            # print(cleaned_generated_texts)
+    
     # print(cleaned_sequences)
     print(len(cleaned_sequences))
     ### === Save the sequences result ============
@@ -264,7 +270,7 @@ def generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq', 'nqswap',
@@ -272,13 +278,13 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',
@@ -320,6 +326,7 @@ if __name__ == "__main__":
     
     set_seed(args.seed)
     generation(args)
+    
     
     # python framework/run/answers_generation.py
     

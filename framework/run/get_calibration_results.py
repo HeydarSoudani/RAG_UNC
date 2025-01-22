@@ -130,8 +130,8 @@ def get_calibration_results(args):
             'average_predictive_entropy_importance_max_main_prompt', 'predictive_entropy_over_concepts_importance_max_main_prompt',
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
-            'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
-            'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
+            # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             # 'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
             # 'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
             # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
@@ -153,14 +153,14 @@ def get_calibration_results(args):
         # uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
 
         # 
-        if main_prompt_format != 'only_q':
-            axiomatic_variables_input_file = f'{results_dir}/{generation_type}/axiomatic_variables.pkl'
-            with open(axiomatic_variables_input_file, 'rb') as f:
-                axiomatic_variables_results  = pickle.load(f)
-            axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
-            result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
-        else:
-            result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
+        # if main_prompt_format != 'only_q':
+        axiomatic_variables_input_file = f'{results_dir}/{generation_type}/axiomatic_variables.pkl'
+        with open(axiomatic_variables_input_file, 'rb') as f:
+            axiomatic_variables_results  = pickle.load(f)
+        axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
+        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
+        # else:
+        #     result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
         
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
@@ -176,6 +176,9 @@ def get_calibration_results(args):
 
     result_df_main_prompt = create_result_df(args.main_prompt_format, args.second_prompt_format)
     result_df_second_prompt = create_result_df(args.second_prompt_format, args.main_prompt_format)
+    
+    # print(result_df_main_prompt.keys())
+
     
     # result_df_main_prompt['axiomatic_coef'] = [
     #     get_axiomatic_coef(answer_equality, nli_main, nli_sec)
@@ -211,8 +214,8 @@ def get_calibration_results(args):
         # non-binarized accuracy
         correctness_results['exact_match_mean'] = results['exact_match'].mean()
         # correctness_results['rougeL_score_mean'] = results['rouge_score'].apply(lambda x: x['rougeL']).mean()
-        correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
-        correctness_results['bem_score_mean'] = results['bem_score'].mean()
+        # correctness_results['bert_score_mean'] = results['bert_score'].apply(lambda x: x['F1']).mean()
+        # correctness_results['bem_score_mean'] = results['bem_score'].mean()
         if args.accuracy_metric in ['bem_score', 'gpt_score']:
             one_minus_correctness = 1 - results[args.accuracy_metric]
         elif args.accuracy_metric == 'rouge_score':
@@ -504,7 +507,7 @@ def get_calibration_results(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
     parser.add_argument('--dataset', type=str, default='popqa', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
@@ -512,7 +515,7 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

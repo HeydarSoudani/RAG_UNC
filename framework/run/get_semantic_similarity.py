@@ -23,11 +23,12 @@ def get_similarity(args):
     
     print("\n--- Step 2: Getting Semantic Similarity ...")
     print(f"""
-        Model name: {args.model}
-        Dataset: {args.dataset}
-        Prompt format: {args.main_prompt_format}
-        Run id: {args.run_id}
-        Seed: {args.seed}
+        Model name:    {args.model}
+        Dataset:       {args.dataset} ({args.fraction_of_data_to_use})
+        Prompt (1st):  {args.main_prompt_format}
+        Prompt (2ed):  {args.second_prompt_format}
+        Run id:        {args.run_id}
+        Seed:          {args.seed}
     """.replace('   ', ''))
     
     # === Define output files =============
@@ -114,8 +115,13 @@ def get_similarity(args):
             last_token_place  = -1
             for j in range(i+1, len(answer)+1):
 
-                if  phrases[phrase_ind].strip().replace(" ", "") == answer[i:j].strip().replace(" ", ""):
+                if phrase_ind < len(phrases) and phrases[phrase_ind].strip().replace(" ", "") == answer[i:j].strip().replace(" ", ""):
+                # if phrases[phrase_ind].strip().replace(" ", "") == answer[i:j].strip().replace(" ", ""):
                     last_token_place = j
+
+            # I added this
+            if last_token_place == -1:
+                break  # Avoid infinite loop if no match is found
 
             real_phrases.append(answer[i:last_token_place].strip())
             i = last_token_place
@@ -130,6 +136,7 @@ def get_similarity(args):
         #answer_ids = answer_ids[0:100]#normally it shouldn't be longer than 256
         answer = tokenizer.decode(answer_ids)
         question = cleaned_sequence['question']
+        # print(answer)
         phrases, importance_vector = inference(model_importance, tokenizer_importance, question, answer)
         
         return torch.tensor(importance_vector), phrases
@@ -165,6 +172,10 @@ def get_similarity(args):
         importance_scores = []
         generations = sample['cleaned_generations'].to(args.device)
         prompt = sample['prompt']
+        
+        # print(idx)
+        # print(sample['cleaned_generated_texts'])
+        # print('\n')
         
         for generation_index in range(generations.shape[0]):
             sequence = {}
@@ -276,11 +287,17 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
-        'only_q', 'q_positive', 'q_negative'
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
-        'only_q', 'q_positive', 'q_negative'
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[

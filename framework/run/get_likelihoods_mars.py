@@ -58,6 +58,7 @@ def get_likelihoods_mars(args):
         return softmax_probs
         
     def compute_token_nll(probs):
+        # print('a')
         neg_log_likelihoods = -torch.log(probs.reshape(-1)) 
         neg_log_likelihoods = neg_log_likelihoods.reshape(-1)
         loss = torch.mean(neg_log_likelihoods)
@@ -70,6 +71,7 @@ def get_likelihoods_mars(args):
     def compute_token_nll_importance_phrase(
         generation, probs, importance_scores, phrases, mode='mean'
     ):
+        # print('b')
         importance_vector = importance_scores.to(args.device)
         
         neg_log_likelihoods = -torch.log(probs.reshape(-1)) 
@@ -81,6 +83,8 @@ def get_likelihoods_mars(args):
         token_idx = 0
         merged_importance_vector  = []
         i = 0
+        
+        # print('bb')
         while i < len(phrases):
             found = False
             while found == False:
@@ -107,11 +111,16 @@ def get_likelihoods_mars(args):
                         i += k
                         token_idx = last_token 
                         break
-        
+                
+                if last_token == -1:  # No match was found in the entire for-loop
+                    i += 1  # Move forward to prevent getting stuck
+                    break 
+                
+        # print('bc')
         neg_log_likelihoods_word = torch.tensor(neg_log_likelihoods_word).to(args.device)
         merged_importance_vector = torch.tensor(merged_importance_vector).to(args.device)
         merged_importance_vector = merged_importance_vector/torch.sum(merged_importance_vector)
-        
+        # print('bd')
         if 'medical' in args.run_id:
             merged_importance_vector = softmax_with_temperature(merged_importance_vector,0.001) # Only for medical dataset
             score = 0.5 * torch.sum(merged_importance_vector * neg_log_likelihoods_word) + 0.5 * torch.mean(neg_log_likelihoods)
@@ -127,6 +136,10 @@ def get_likelihoods_mars(args):
     result = []
     ids = []
     for i, sample in tqdm(enumerate(sequences)):
+        
+        # if i > 2250:
+            # print(sample['cleaned_generated_texts'])
+            
         result_dict = {}
         id_ = sample['id']
         ids.append(id_)
@@ -151,20 +164,20 @@ def get_likelihoods_mars(args):
         average_neg_log_likelihoods_importance_max_second_prompt = torch.zeros((generations.shape[0],))
         average_neg_log_likelihoods_importance_min_second_prompt = torch.zeros((generations.shape[0],))
         # Third prompt format
-        average_neg_log_likelihoods_third_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_mean_third_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_max_third_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_min_third_prompt = torch.zeros((generations.shape[0],))
-        # Forth prompt format
-        average_neg_log_likelihoods_forth_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_mean_forth_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_max_forth_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_min_forth_prompt = torch.zeros((generations.shape[0],))
-        # Fifth prompt format
-        average_neg_log_likelihoods_fifth_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_mean_fifth_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_max_fifth_prompt = torch.zeros((generations.shape[0],))
-        average_neg_log_likelihoods_importance_min_fifth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_third_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_mean_third_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_max_third_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_min_third_prompt = torch.zeros((generations.shape[0],))
+        # # Forth prompt format
+        # average_neg_log_likelihoods_forth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_mean_forth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_max_forth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_min_forth_prompt = torch.zeros((generations.shape[0],))
+        # # Fifth prompt format
+        # average_neg_log_likelihoods_fifth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_mean_fifth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_max_fifth_prompt = torch.zeros((generations.shape[0],))
+        # average_neg_log_likelihoods_importance_min_fifth_prompt = torch.zeros((generations.shape[0],))
         
         
         ### = For generations ===============================
@@ -225,95 +238,95 @@ def get_likelihoods_mars(args):
 
 
             ### === Third prompt =============================
-            probs_third = probabilities_generations[generation_index][4]
-            if len(probs_third) > 0:
-                model_output_loss_third = compute_token_nll(probs_third) 
-                model_output_loss_importance_mean_third = compute_token_nll_importance_phrase(
-                    generation, probs_third,
-                    importance_score, phrases, mode='mean'
-                )
-                model_output_loss_importance_max_third = compute_token_nll_importance_phrase(
-                    generation, probs_third,
-                    importance_score, phrases, mode='max'
-                )
-                model_output_loss_importance_min_third = compute_token_nll_importance_phrase(
-                    generation, probs_third,
-                    importance_score, phrases, mode='min'
-                )
+            # probs_third = probabilities_generations[generation_index][4]
+            # if len(probs_third) > 0:
+            #     model_output_loss_third = compute_token_nll(probs_third) 
+            #     model_output_loss_importance_mean_third = compute_token_nll_importance_phrase(
+            #         generation, probs_third,
+            #         importance_score, phrases, mode='mean'
+            #     )
+            #     model_output_loss_importance_max_third = compute_token_nll_importance_phrase(
+            #         generation, probs_third,
+            #         importance_score, phrases, mode='max'
+            #     )
+            #     model_output_loss_importance_min_third = compute_token_nll_importance_phrase(
+            #         generation, probs_third,
+            #         importance_score, phrases, mode='min'
+            #     )
                 
-                average_neg_log_likelihoods_third_prompt[generation_index] = model_output_loss_third
-                average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = model_output_loss_importance_mean_third
-                average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = model_output_loss_importance_max_third
-                average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = model_output_loss_importance_min_third
+            #     average_neg_log_likelihoods_third_prompt[generation_index] = model_output_loss_third
+            #     average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = model_output_loss_importance_mean_third
+            #     average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = model_output_loss_importance_max_third
+            #     average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = model_output_loss_importance_min_third
             
-            else: 
-                score = 100000
-                average_neg_log_likelihoods_third_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = score
+            # else: 
+            #     score = 100000
+            #     average_neg_log_likelihoods_third_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_mean_third_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_max_third_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_min_third_prompt[generation_index] = score
             
 
             ### === Forth prompt =============================
-            probs_forth = probabilities_generations[generation_index][5]
-            if len(probs_forth) > 0:
-                model_output_loss_forth = compute_token_nll(probs_forth) 
-                model_output_loss_importance_mean_forth = compute_token_nll_importance_phrase(
-                    generation, probs_forth,
-                    importance_score, phrases, mode='mean'
-                )
-                model_output_loss_importance_max_forth = compute_token_nll_importance_phrase(
-                    generation, probs_forth,
-                    importance_score, phrases, mode='max'
-                )
-                model_output_loss_importance_min_forth = compute_token_nll_importance_phrase(
-                    generation, probs_forth,
-                    importance_score, phrases, mode='min'
-                )
+            # probs_forth = probabilities_generations[generation_index][5]
+            # if len(probs_forth) > 0:
+            #     model_output_loss_forth = compute_token_nll(probs_forth) 
+            #     model_output_loss_importance_mean_forth = compute_token_nll_importance_phrase(
+            #         generation, probs_forth,
+            #         importance_score, phrases, mode='mean'
+            #     )
+            #     model_output_loss_importance_max_forth = compute_token_nll_importance_phrase(
+            #         generation, probs_forth,
+            #         importance_score, phrases, mode='max'
+            #     )
+            #     model_output_loss_importance_min_forth = compute_token_nll_importance_phrase(
+            #         generation, probs_forth,
+            #         importance_score, phrases, mode='min'
+            #     )
                 
-                average_neg_log_likelihoods_forth_prompt[generation_index] = model_output_loss_forth
-                average_neg_log_likelihoods_importance_mean_forth_prompt[generation_index] = model_output_loss_importance_mean_forth
-                average_neg_log_likelihoods_importance_max_forth_prompt[generation_index] = model_output_loss_importance_max_forth
-                average_neg_log_likelihoods_importance_min_forth_prompt[generation_index] = model_output_loss_importance_min_forth
+            #     average_neg_log_likelihoods_forth_prompt[generation_index] = model_output_loss_forth
+            #     average_neg_log_likelihoods_importance_mean_forth_prompt[generation_index] = model_output_loss_importance_mean_forth
+            #     average_neg_log_likelihoods_importance_max_forth_prompt[generation_index] = model_output_loss_importance_max_forth
+            #     average_neg_log_likelihoods_importance_min_forth_prompt[generation_index] = model_output_loss_importance_min_forth
             
-            else: 
-                score = 100000
-                average_neg_log_likelihoods_forth_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_mean_forth_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_max_forth_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_min_forth_prompt[generation_index] = score
+            # else: 
+            #     score = 100000
+            #     average_neg_log_likelihoods_forth_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_mean_forth_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_max_forth_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_min_forth_prompt[generation_index] = score
                 
             
             ### === Fifth prompt =============================
-            probs_fifth = probabilities_generations[generation_index][6]
-            if len(probs_fifth) > 0:
-                model_output_loss_fifth = compute_token_nll(probs_fifth) 
-                model_output_loss_importance_mean_fifth = compute_token_nll_importance_phrase(
-                    generation, probs_fifth,
-                    importance_score, phrases, mode='mean'
-                )
-                model_output_loss_importance_max_fifth = compute_token_nll_importance_phrase(
-                    generation, probs_fifth,
-                    importance_score, phrases, mode='max'
-                )
-                model_output_loss_importance_min_fifth = compute_token_nll_importance_phrase(
-                    generation, probs_fifth,
-                    importance_score, phrases, mode='min'
-                )
+            # probs_fifth = probabilities_generations[generation_index][6]
+            # if len(probs_fifth) > 0:
+            #     model_output_loss_fifth = compute_token_nll(probs_fifth) 
+            #     model_output_loss_importance_mean_fifth = compute_token_nll_importance_phrase(
+            #         generation, probs_fifth,
+            #         importance_score, phrases, mode='mean'
+            #     )
+            #     model_output_loss_importance_max_fifth = compute_token_nll_importance_phrase(
+            #         generation, probs_fifth,
+            #         importance_score, phrases, mode='max'
+            #     )
+            #     model_output_loss_importance_min_fifth = compute_token_nll_importance_phrase(
+            #         generation, probs_fifth,
+            #         importance_score, phrases, mode='min'
+            #     )
                 
-                average_neg_log_likelihoods_fifth_prompt[generation_index] = model_output_loss_fifth
-                average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = model_output_loss_importance_mean_fifth
-                average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = model_output_loss_importance_max_fifth
-                average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = model_output_loss_importance_min_fifth
+            #     average_neg_log_likelihoods_fifth_prompt[generation_index] = model_output_loss_fifth
+            #     average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = model_output_loss_importance_mean_fifth
+            #     average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = model_output_loss_importance_max_fifth
+            #     average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = model_output_loss_importance_min_fifth
             
-            else: 
-                score = 100000
-                average_neg_log_likelihoods_fifth_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = score
-                average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = score
-        
-        
+            # else: 
+            #     score = 100000
+            #     average_neg_log_likelihoods_fifth_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_mean_fifth_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_max_fifth_prompt[generation_index] = score
+            #     average_neg_log_likelihoods_importance_min_fifth_prompt[generation_index] = score
+
+
         ### = For most-likely ===============================
         if len(sample['cleaned_most_likely_generation_ids']) > 0:
             _generation_most_likely = generation_most_likely[generation_most_likely != tokenizer.pad_token_id]
@@ -370,93 +383,93 @@ def get_likelihoods_mars(args):
                 most_likely_model_output_loss_importance_min_second_prompt = score
 
             # === third prompt ===============================
-            probs_third = probabilities_most_likely[4]
+            # probs_third = probabilities_most_likely[4]
             
-            if len(probs_third) > 0:
-                most_likely_model_output_loss_third_prompt = compute_token_nll(probs_third)
-                most_likely_model_output_loss_importance_mean_third_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_third,
-                    importance_score_most_likely[0], phrases, mode='mean'
-                )
-                most_likely_model_output_loss_importance_max_third_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_third,
-                    importance_score_most_likely[0], phrases, mode='max'
-                )
-                most_likely_model_output_loss_importance_min_third_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_third,
-                    importance_score_most_likely[0], phrases, mode='min'
-                )
-                most_likely_model_output_loss_third_prompt = most_likely_model_output_loss_third_prompt.cpu()
-                most_likely_model_output_loss_importance_mean_third_prompt = most_likely_model_output_loss_importance_mean_third_prompt.cpu()
-                most_likely_model_output_loss_importance_max_third_prompt = most_likely_model_output_loss_importance_max_third_prompt.cpu()
-                most_likely_model_output_loss_importance_min_third_prompt = most_likely_model_output_loss_importance_min_third_prompt.cpu()
+            # if len(probs_third) > 0:
+            #     most_likely_model_output_loss_third_prompt = compute_token_nll(probs_third)
+            #     most_likely_model_output_loss_importance_mean_third_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_third,
+            #         importance_score_most_likely[0], phrases, mode='mean'
+            #     )
+            #     most_likely_model_output_loss_importance_max_third_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_third,
+            #         importance_score_most_likely[0], phrases, mode='max'
+            #     )
+            #     most_likely_model_output_loss_importance_min_third_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_third,
+            #         importance_score_most_likely[0], phrases, mode='min'
+            #     )
+            #     most_likely_model_output_loss_third_prompt = most_likely_model_output_loss_third_prompt.cpu()
+            #     most_likely_model_output_loss_importance_mean_third_prompt = most_likely_model_output_loss_importance_mean_third_prompt.cpu()
+            #     most_likely_model_output_loss_importance_max_third_prompt = most_likely_model_output_loss_importance_max_third_prompt.cpu()
+            #     most_likely_model_output_loss_importance_min_third_prompt = most_likely_model_output_loss_importance_min_third_prompt.cpu()
 
-            else: 
-                score = 100000
-                most_likely_model_output_loss_third_prompt = score
-                most_likely_model_output_loss_importance_mean_third_prompt = score
-                most_likely_model_output_loss_importance_max_third_prompt = score
-                most_likely_model_output_loss_importance_min_third_prompt = score
+            # else: 
+            #     score = 100000
+            #     most_likely_model_output_loss_third_prompt = score
+            #     most_likely_model_output_loss_importance_mean_third_prompt = score
+            #     most_likely_model_output_loss_importance_max_third_prompt = score
+            #     most_likely_model_output_loss_importance_min_third_prompt = score
                 
             
             # === Forth prompt ===============================
-            probs_forth = probabilities_most_likely[5]
+            # probs_forth = probabilities_most_likely[5]
             
-            if len(probs_forth) > 0:
-                most_likely_model_output_loss_forth_prompt = compute_token_nll(probs_forth)
-                most_likely_model_output_loss_importance_mean_forth_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_forth,
-                    importance_score_most_likely[0], phrases, mode='mean'
-                )
-                most_likely_model_output_loss_importance_max_forth_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_forth,
-                    importance_score_most_likely[0], phrases, mode='max'
-                )
-                most_likely_model_output_loss_importance_min_forth_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_forth,
-                    importance_score_most_likely[0], phrases, mode='min'
-                )
-                most_likely_model_output_loss_forth_prompt = most_likely_model_output_loss_forth_prompt.cpu()
-                most_likely_model_output_loss_importance_mean_forth_prompt = most_likely_model_output_loss_importance_mean_forth_prompt.cpu()
-                most_likely_model_output_loss_importance_max_forth_prompt = most_likely_model_output_loss_importance_max_forth_prompt.cpu()
-                most_likely_model_output_loss_importance_min_forth_prompt = most_likely_model_output_loss_importance_min_forth_prompt.cpu()
+            # if len(probs_forth) > 0:
+            #     most_likely_model_output_loss_forth_prompt = compute_token_nll(probs_forth)
+            #     most_likely_model_output_loss_importance_mean_forth_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_forth,
+            #         importance_score_most_likely[0], phrases, mode='mean'
+            #     )
+            #     most_likely_model_output_loss_importance_max_forth_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_forth,
+            #         importance_score_most_likely[0], phrases, mode='max'
+            #     )
+            #     most_likely_model_output_loss_importance_min_forth_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_forth,
+            #         importance_score_most_likely[0], phrases, mode='min'
+            #     )
+            #     most_likely_model_output_loss_forth_prompt = most_likely_model_output_loss_forth_prompt.cpu()
+            #     most_likely_model_output_loss_importance_mean_forth_prompt = most_likely_model_output_loss_importance_mean_forth_prompt.cpu()
+            #     most_likely_model_output_loss_importance_max_forth_prompt = most_likely_model_output_loss_importance_max_forth_prompt.cpu()
+            #     most_likely_model_output_loss_importance_min_forth_prompt = most_likely_model_output_loss_importance_min_forth_prompt.cpu()
 
-            else: 
-                score = 100000
-                most_likely_model_output_loss_forth_prompt = score
-                most_likely_model_output_loss_importance_mean_forth_prompt = score
-                most_likely_model_output_loss_importance_max_forth_prompt = score
-                most_likely_model_output_loss_importance_min_forth_prompt = score
+            # else: 
+            #     score = 100000
+            #     most_likely_model_output_loss_forth_prompt = score
+            #     most_likely_model_output_loss_importance_mean_forth_prompt = score
+            #     most_likely_model_output_loss_importance_max_forth_prompt = score
+            #     most_likely_model_output_loss_importance_min_forth_prompt = score
             
             
             # === Fifth prompt ===============================
-            probs_fifth = probabilities_most_likely[5]
+            # probs_fifth = probabilities_most_likely[5]
             
-            if len(probs_fifth) > 0:
-                most_likely_model_output_loss_fifth_prompt = compute_token_nll(probs_fifth)
-                most_likely_model_output_loss_importance_mean_fifth_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_fifth,
-                    importance_score_most_likely[0], phrases, mode='mean'
-                )
-                most_likely_model_output_loss_importance_max_fifth_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_fifth,
-                    importance_score_most_likely[0], phrases, mode='max'
-                )
-                most_likely_model_output_loss_importance_min_fifth_prompt = compute_token_nll_importance_phrase(
-                    _generation_most_likely, probs_fifth,
-                    importance_score_most_likely[0], phrases, mode='min'
-                )
-                most_likely_model_output_loss_fifth_prompt = most_likely_model_output_loss_fifth_prompt.cpu()
-                most_likely_model_output_loss_importance_mean_fifth_prompt = most_likely_model_output_loss_importance_mean_fifth_prompt.cpu()
-                most_likely_model_output_loss_importance_max_fifth_prompt = most_likely_model_output_loss_importance_max_fifth_prompt.cpu()
-                most_likely_model_output_loss_importance_min_fifth_prompt = most_likely_model_output_loss_importance_min_fifth_prompt.cpu()
+            # if len(probs_fifth) > 0:
+            #     most_likely_model_output_loss_fifth_prompt = compute_token_nll(probs_fifth)
+            #     most_likely_model_output_loss_importance_mean_fifth_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_fifth,
+            #         importance_score_most_likely[0], phrases, mode='mean'
+            #     )
+            #     most_likely_model_output_loss_importance_max_fifth_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_fifth,
+            #         importance_score_most_likely[0], phrases, mode='max'
+            #     )
+            #     most_likely_model_output_loss_importance_min_fifth_prompt = compute_token_nll_importance_phrase(
+            #         _generation_most_likely, probs_fifth,
+            #         importance_score_most_likely[0], phrases, mode='min'
+            #     )
+            #     most_likely_model_output_loss_fifth_prompt = most_likely_model_output_loss_fifth_prompt.cpu()
+            #     most_likely_model_output_loss_importance_mean_fifth_prompt = most_likely_model_output_loss_importance_mean_fifth_prompt.cpu()
+            #     most_likely_model_output_loss_importance_max_fifth_prompt = most_likely_model_output_loss_importance_max_fifth_prompt.cpu()
+            #     most_likely_model_output_loss_importance_min_fifth_prompt = most_likely_model_output_loss_importance_min_fifth_prompt.cpu()
 
-            else: 
-                score = 100000
-                most_likely_model_output_loss_fifth_prompt = score
-                most_likely_model_output_loss_importance_mean_fifth_prompt = score
-                most_likely_model_output_loss_importance_max_fifth_prompt = score
-                most_likely_model_output_loss_importance_min_fifth_prompt = score
+            # else: 
+            #     score = 100000
+            #     most_likely_model_output_loss_fifth_prompt = score
+            #     most_likely_model_output_loss_importance_mean_fifth_prompt = score
+            #     most_likely_model_output_loss_importance_max_fifth_prompt = score
+            #     most_likely_model_output_loss_importance_min_fifth_prompt = score
                 
         else:
             score = 100000
@@ -470,20 +483,20 @@ def get_likelihoods_mars(args):
             most_likely_model_output_loss_importance_max_second_prompt = score
             most_likely_model_output_loss_importance_min_second_prompt = score
             
-            most_likely_model_output_loss_third_prompt = score
-            most_likely_model_output_loss_importance_mean_third_prompt = score
-            most_likely_model_output_loss_importance_max_third_prompt = score
-            most_likely_model_output_loss_importance_min_third_prompt = score
+            # most_likely_model_output_loss_third_prompt = score
+            # most_likely_model_output_loss_importance_mean_third_prompt = score
+            # most_likely_model_output_loss_importance_max_third_prompt = score
+            # most_likely_model_output_loss_importance_min_third_prompt = score
             
-            most_likely_model_output_loss_forth_prompt = score
-            most_likely_model_output_loss_importance_mean_forth_prompt = score
-            most_likely_model_output_loss_importance_max_forth_prompt = score
-            most_likely_model_output_loss_importance_min_forth_prompt = score
+            # most_likely_model_output_loss_forth_prompt = score
+            # most_likely_model_output_loss_importance_mean_forth_prompt = score
+            # most_likely_model_output_loss_importance_max_forth_prompt = score
+            # most_likely_model_output_loss_importance_min_forth_prompt = score
             
-            most_likely_model_output_loss_fifth_prompt = score
-            most_likely_model_output_loss_importance_mean_fifth_prompt = score
-            most_likely_model_output_loss_importance_max_fifth_prompt = score
-            most_likely_model_output_loss_importance_min_fifth_prompt = score
+            # most_likely_model_output_loss_fifth_prompt = score
+            # most_likely_model_output_loss_importance_mean_fifth_prompt = score
+            # most_likely_model_output_loss_importance_max_fifth_prompt = score
+            # most_likely_model_output_loss_importance_min_fifth_prompt = score
             
             
         ### = Write to file =========================
@@ -504,7 +517,7 @@ def get_likelihoods_mars(args):
         result_dict['most_likely_neg_log_likelihoods_importance_max_main_prompt'] = most_likely_model_output_loss_importance_max_main_prompt
         result_dict['most_likely_neg_log_likelihoods_importance_min_main_prompt'] = most_likely_model_output_loss_importance_min_main_prompt
         
-        # Second prompt
+        # # Second prompt
         result_dict['average_neg_log_likelihoods_second_prompt'] = average_neg_log_likelihoods_second_prompt.cpu()
         result_dict['average_neg_log_likelihoods_importance_mean_second_prompt'] = average_neg_log_likelihoods_importance_mean_second_prompt.cpu()
         result_dict['average_neg_log_likelihoods_importance_max_second_prompt'] = average_neg_log_likelihoods_importance_max_second_prompt.cpu()
@@ -514,35 +527,35 @@ def get_likelihoods_mars(args):
         result_dict['most_likely_neg_log_likelihoods_importance_max_second_prompt'] = most_likely_model_output_loss_importance_max_second_prompt
         result_dict['most_likely_neg_log_likelihoods_importance_min_second_prompt'] = most_likely_model_output_loss_importance_min_second_prompt
         
-        # Third prompt
-        result_dict['average_neg_log_likelihoods_third_prompt'] = average_neg_log_likelihoods_third_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_mean_third_prompt'] = average_neg_log_likelihoods_importance_mean_third_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_max_third_prompt'] = average_neg_log_likelihoods_importance_max_third_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_min_third_prompt'] = average_neg_log_likelihoods_importance_min_third_prompt.cpu()
-        result_dict['most_likely_neg_log_likelihoods_third_prompt'] = most_likely_model_output_loss_third_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_mean_third_prompt'] = most_likely_model_output_loss_importance_mean_third_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_max_third_prompt'] = most_likely_model_output_loss_importance_max_third_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_min_third_prompt'] = most_likely_model_output_loss_importance_min_third_prompt
+        # # Third prompt
+        # result_dict['average_neg_log_likelihoods_third_prompt'] = average_neg_log_likelihoods_third_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_mean_third_prompt'] = average_neg_log_likelihoods_importance_mean_third_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_max_third_prompt'] = average_neg_log_likelihoods_importance_max_third_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_min_third_prompt'] = average_neg_log_likelihoods_importance_min_third_prompt.cpu()
+        # result_dict['most_likely_neg_log_likelihoods_third_prompt'] = most_likely_model_output_loss_third_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_mean_third_prompt'] = most_likely_model_output_loss_importance_mean_third_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_max_third_prompt'] = most_likely_model_output_loss_importance_max_third_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_min_third_prompt'] = most_likely_model_output_loss_importance_min_third_prompt
         
-        # forth prompt
-        result_dict['average_neg_log_likelihoods_forth_prompt'] = average_neg_log_likelihoods_forth_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_mean_forth_prompt'] = average_neg_log_likelihoods_importance_mean_forth_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_max_forth_prompt'] = average_neg_log_likelihoods_importance_max_forth_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_min_forth_prompt'] = average_neg_log_likelihoods_importance_min_forth_prompt.cpu()
-        result_dict['most_likely_neg_log_likelihoods_forth_prompt'] = most_likely_model_output_loss_forth_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_mean_forth_prompt'] = most_likely_model_output_loss_importance_mean_forth_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_max_forth_prompt'] = most_likely_model_output_loss_importance_max_forth_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_min_forth_prompt'] = most_likely_model_output_loss_importance_min_forth_prompt
+        # # forth prompt
+        # result_dict['average_neg_log_likelihoods_forth_prompt'] = average_neg_log_likelihoods_forth_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_mean_forth_prompt'] = average_neg_log_likelihoods_importance_mean_forth_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_max_forth_prompt'] = average_neg_log_likelihoods_importance_max_forth_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_min_forth_prompt'] = average_neg_log_likelihoods_importance_min_forth_prompt.cpu()
+        # result_dict['most_likely_neg_log_likelihoods_forth_prompt'] = most_likely_model_output_loss_forth_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_mean_forth_prompt'] = most_likely_model_output_loss_importance_mean_forth_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_max_forth_prompt'] = most_likely_model_output_loss_importance_max_forth_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_min_forth_prompt'] = most_likely_model_output_loss_importance_min_forth_prompt
         
-        # Fifth prompt
-        result_dict['average_neg_log_likelihoods_fifth_prompt'] = average_neg_log_likelihoods_fifth_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_mean_fifth_prompt'] = average_neg_log_likelihoods_importance_mean_fifth_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_max_fifth_prompt'] = average_neg_log_likelihoods_importance_max_fifth_prompt.cpu()
-        result_dict['average_neg_log_likelihoods_importance_min_fifth_prompt'] = average_neg_log_likelihoods_importance_min_fifth_prompt.cpu()
-        result_dict['most_likely_neg_log_likelihoods_fifth_prompt'] = most_likely_model_output_loss_fifth_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_mean_fifth_prompt'] = most_likely_model_output_loss_importance_mean_fifth_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_max_fifth_prompt'] = most_likely_model_output_loss_importance_max_fifth_prompt
-        result_dict['most_likely_neg_log_likelihoods_importance_min_fifth_prompt'] = most_likely_model_output_loss_importance_min_fifth_prompt
+        # # Fifth prompt
+        # result_dict['average_neg_log_likelihoods_fifth_prompt'] = average_neg_log_likelihoods_fifth_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_mean_fifth_prompt'] = average_neg_log_likelihoods_importance_mean_fifth_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_max_fifth_prompt'] = average_neg_log_likelihoods_importance_max_fifth_prompt.cpu()
+        # result_dict['average_neg_log_likelihoods_importance_min_fifth_prompt'] = average_neg_log_likelihoods_importance_min_fifth_prompt.cpu()
+        # result_dict['most_likely_neg_log_likelihoods_fifth_prompt'] = most_likely_model_output_loss_fifth_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_mean_fifth_prompt'] = most_likely_model_output_loss_importance_mean_fifth_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_max_fifth_prompt'] = most_likely_model_output_loss_importance_max_fifth_prompt
+        # result_dict['most_likely_neg_log_likelihoods_importance_min_fifth_prompt'] = most_likely_model_output_loss_importance_min_fifth_prompt
         
         result.append(result_dict)
     
@@ -555,7 +568,7 @@ def get_likelihoods_mars(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
@@ -563,12 +576,12 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

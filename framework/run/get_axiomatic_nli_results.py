@@ -75,24 +75,24 @@ def get_axiomatic_results(args):
             'PE_MARS': 'average_predictive_entropy_importance_max_second_prompt',
             'SE_MARS': 'predictive_entropy_over_concepts_importance_max_second_prompt'
         },
-        'third_prompt': {
-            'PE': 'average_predictive_entropy_third_prompt',
-            'SE': 'predictive_entropy_over_concepts_third_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
-        },
-        'forth_prompt': {
-            'PE': 'average_predictive_entropy_forth_prompt',
-            'SE': 'predictive_entropy_over_concepts_forth_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
-        },
-        'fifth_prompt': {
-            'PE': 'average_predictive_entropy_forth_prompt',
-            'SE': 'predictive_entropy_over_concepts_forth_prompt',
-            'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
-            'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
-        }
+        # 'third_prompt': {
+        #     'PE': 'average_predictive_entropy_third_prompt',
+        #     'SE': 'predictive_entropy_over_concepts_third_prompt',
+        #     'PE_MARS': 'average_predictive_entropy_importance_max_third_prompt',
+        #     'SE_MARS': 'predictive_entropy_over_concepts_importance_max_third_prompt'
+        # },
+        # 'forth_prompt': {
+        #     'PE': 'average_predictive_entropy_forth_prompt',
+        #     'SE': 'predictive_entropy_over_concepts_forth_prompt',
+        #     'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
+        #     'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
+        # },
+        # 'fifth_prompt': {
+        #     'PE': 'average_predictive_entropy_forth_prompt',
+        #     'SE': 'predictive_entropy_over_concepts_forth_prompt',
+        #     'PE_MARS': 'average_predictive_entropy_importance_max_forth_prompt',
+        #     'SE_MARS': 'predictive_entropy_over_concepts_importance_max_forth_prompt'
+        # }
          
     }
     
@@ -144,8 +144,8 @@ def get_axiomatic_results(args):
             'average_predictive_entropy_importance_max_main_prompt', 'predictive_entropy_over_concepts_importance_max_main_prompt',
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
-            'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
-            'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
+            # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             # 'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
             # 'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
             # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
@@ -431,14 +431,14 @@ def get_axiomatic_results(args):
         # answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['SE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
             print(f"Unc. Model: {uncertainty_model}")
             unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
             unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
             
             # === 2) Get Axiomatic Coef.
             result_df_main_prompt['axiomatic_coef'] = [
-                get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.3, 0.7))
+                get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.0, 1.0))
                 for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
                     result_df_main_prompt['answer_equality_nli'],
                     result_df_main_prompt['nli_relation_main'],
@@ -570,27 +570,25 @@ def get_axiomatic_results(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test', 'validation'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
-        'only_q', 'q_positive', 'q_negative', 'q_negative',
-        'bm25_retriever_top1', 'bm25_retriever_top5',
-        'contriever_retriever_top1', 'contriever_retriever_top5',
-        'rerank_retriever_top1', 'rerank_retriever_top5'
-    ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
-        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+        'only_q', 'q_positive', 'q_negative', 'q_conflict',
+        'bm25_retriever_top1', 'bm25_retriever_top5',
+        'rerank_retriever_top1', 'rerank_retriever_top5'
+    ])
+    
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'exact_match', 'rouge_score', 'bert_score', 'bem_score', 'llama3_score', 'gpt_score'
     ])

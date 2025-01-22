@@ -95,8 +95,8 @@ def get_axiomatic_variables(args):
             'average_predictive_entropy_importance_max_main_prompt', 'predictive_entropy_over_concepts_importance_max_main_prompt',
             'average_predictive_entropy_second_prompt', 'predictive_entropy_over_concepts_second_prompt',
             'average_predictive_entropy_importance_max_second_prompt', 'predictive_entropy_over_concepts_importance_max_second_prompt',
-            'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
-            'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
+            # 'average_predictive_entropy_third_prompt', 'predictive_entropy_over_concepts_third_prompt',
+            # 'average_predictive_entropy_importance_max_third_prompt', 'predictive_entropy_over_concepts_importance_max_third_prompt',
             # 'average_predictive_entropy_forth_prompt', 'predictive_entropy_over_concepts_forth_prompt',
             # 'average_predictive_entropy_importance_max_forth_prompt', 'predictive_entropy_over_concepts_importance_max_forth_prompt',
             # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
@@ -290,9 +290,6 @@ def get_axiomatic_variables(args):
         ), desc='Getting axiomatic coef. ...')
     ]
     
-    # Grid search for C1, C2, C3
-    # TODO
-    
     cm = confusion_matrix(
         result_df_main_prompt_filtered["axiom_num_correctness"],
         result_df_main_prompt_filtered["axiom_num_nli"],
@@ -356,15 +353,15 @@ def get_axiomatic_variables(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'trivia', 'popqa', 'nqswap',
+        'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test', 'validation'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

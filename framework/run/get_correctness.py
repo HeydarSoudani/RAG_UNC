@@ -43,8 +43,8 @@ def get_correctness(args):
 
 
     # === Define correctness scores =================
-    bem_score = BemScore()
-    bert_score = BertScore()
+    # bem_score = BemScore()
+    # bert_score = BertScore()
     # rouge_score = RougeScore()
     exact_match_score = ExactMatch()
     # llama_score = LLamaScore(args.llama_eval_model, args.device)
@@ -75,14 +75,15 @@ def get_correctness(args):
             
             # === Calculate correctness score
             candidate = sample['most_likely_generation'].lstrip()
-            bem_score_ = bem_score(question, reference_answers, candidate)
-            bert_score_ = bert_score(reference_answers, candidate)
             exact_match_ = exact_match_score(reference_answers, candidate)
+            # bem_score_ = bem_score(question, reference_answers, candidate)
+            # bert_score_ = bert_score(reference_answers, candidate)
+            
             # rouge_score_ = rouge_score(reference_answers, candidate)
             # llama_score_ = llama_score(question, reference_answers, candidate)
-            sequence_dict['bem_score'] = bem_score_
-            sequence_dict['bert_score'] = bert_score_
             sequence_dict['exact_match'] = exact_match_
+            sequence_dict['bem_score'] = 0.0  # bem_score_
+            sequence_dict['bert_score'] = 0.0 # bert_score_
             sequence_dict['rouge_score'] = 0.0 #rouge_score_
             # sequence_dict['llama_score'] = llama_score_
             correctness_sequences.append(sequence_dict)
@@ -114,7 +115,7 @@ def get_correctness(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
@@ -122,12 +123,12 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'

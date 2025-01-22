@@ -291,16 +291,16 @@ def get_probability(args):
                 }
                 
                 # = Claculate alpha based on axioms
-                if id_ in _sequences_secondry:
-                    prompt_text = sample['prompt_text']
-                    context = prompt_text.split('Document:')[-1].split('Question:')[0]
-                    with_context_answer = generation_text_most_likely.strip()
-                    wo_context_answer = _sequences_secondry[id_]['cleaned_most_likely_generation'].strip()
-                    alpha_axiomatic = get_cad_alpha(context, question, with_context_answer, wo_context_answer)
-                    alpha_axiomatic_v2 = get_cad_alpha_v2(context, question, with_context_answer, wo_context_answer, args)
-                else:
-                    alpha_axiomatic = args.alpha_probability
-                    alpha_axiomatic_v2 = args.alpha_probability
+                # if id_ in _sequences_secondry:
+                #     prompt_text = sample['prompt_text']
+                #     context = prompt_text.split('Document:')[-1].split('Question:')[0]
+                #     with_context_answer = generation_text_most_likely.strip()
+                #     wo_context_answer = _sequences_secondry[id_]['cleaned_most_likely_generation'].strip()
+                #     alpha_axiomatic = get_cad_alpha(context, question, with_context_answer, wo_context_answer)
+                #     alpha_axiomatic_v2 = get_cad_alpha_v2(context, question, with_context_answer, wo_context_answer, args)
+                # else:
+                #     alpha_axiomatic = args.alpha_probability
+                #     alpha_axiomatic_v2 = args.alpha_probability
                 
                 # = For generations ====
                 probabilities = []
@@ -321,22 +321,22 @@ def get_probability(args):
                     # probs_only_answer = get_probability_unconditioned(prompt, cur_generation)
                     
                     # Third prompt: CAD (alpha is fixed for all samples)
-                    if id_ in _sequences_secondry:
-                        probs_cad_fixed = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, args.alpha_probability)
-                    else:
-                        probs_cad_fixed = torch.tensor([])
+                    # if id_ in _sequences_secondry:
+                    #     probs_cad_fixed = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, args.alpha_probability)
+                    # else:
+                    #     probs_cad_fixed = torch.tensor([])
                 
                     # Forth prompt: CAD (alpha is based on axioms)
-                    if id_ in _sequences_secondry:
-                        probs_cad_axiomatic = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, alpha_axiomatic)
-                    else:
-                        probs_cad_axiomatic = torch.tensor([])
+                    # if id_ in _sequences_secondry:
+                    #     probs_cad_axiomatic = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, alpha_axiomatic)
+                    # else:
+                    #     probs_cad_axiomatic = torch.tensor([])
                 
                     # Fifth prompt: CAD, alpha with three sentences
-                    if id_ in _sequences_secondry:
-                        probs_cad_difference = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, alpha_axiomatic_v2)
-                    else:
-                        probs_cad_difference = torch.tensor([])
+                    # if id_ in _sequences_secondry:
+                    #     probs_cad_difference = get_probability_cad_combination(prompt, prompt_secondry, cur_generation, alpha_axiomatic_v2)
+                    # else:
+                    #     probs_cad_difference = torch.tensor([])
                 
                 
                     probabilities.append((
@@ -344,9 +344,9 @@ def get_probability(args):
                         cur_generation_tokens,
                         probs,
                         probs_secondry,
-                        probs_cad_fixed,
-                        probs_cad_axiomatic,
-                        probs_cad_difference
+                        # probs_cad_fixed,
+                        # probs_cad_axiomatic,
+                        # probs_cad_difference
                     ))
                 result_dict[id_]['probabilities'] = probabilities
                 
@@ -366,36 +366,36 @@ def get_probability(args):
                     # probs_only_answer_most_likely = get_probability_unconditioned(prompt, generation_most_likely)
                     
                     # Third prompt: CAD (alpha is fixed for all samples)
-                    if id_ in _sequences_secondry:
-                        probs_cad_fixed_most_likely = get_probability_cad_combination(prompt, prompt_secondry, generation_most_likely, args.alpha_probability)
-                    else:
-                        probs_cad_fixed_most_likely = torch.tensor([])
+                    # if id_ in _sequences_secondry:
+                    #     probs_cad_fixed_most_likely = get_probability_cad_combination(prompt, prompt_secondry, generation_most_likely, args.alpha_probability)
+                    # else:
+                    #     probs_cad_fixed_most_likely = torch.tensor([])
                     
                     # Forth prompt: CAD (alpha is based on axioms)
-                    if id_ in _sequences_secondry:
-                        probs_cad_axiomatic_most_likely = get_probability_cad_combination(prompt, prompt_secondry, generation_most_likely, alpha_axiomatic)
-                    else:
-                        probs_cad_axiomatic_most_likely = torch.tensor([])
+                    # if id_ in _sequences_secondry:
+                    #     probs_cad_axiomatic_most_likely = get_probability_cad_combination(prompt, prompt_secondry, generation_most_likely, alpha_axiomatic)
+                    # else:
+                    #     probs_cad_axiomatic_most_likely = torch.tensor([])
                     
                     # Fifth prompt: 
-                    if id_ in _sequences_secondry:
-                        probs_cad_difference_most_likely = get_probability_cad_difference(prompt, prompt_secondry, generation_most_likely, ALPHA_DIFFERENCE)
-                    else:
-                        probs_cad_difference_most_likely = torch.tensor([])
+                    # if id_ in _sequences_secondry:
+                    #     probs_cad_difference_most_likely = get_probability_cad_difference(prompt, prompt_secondry, generation_most_likely, ALPHA_DIFFERENCE)
+                    # else:
+                    #     probs_cad_difference_most_likely = torch.tensor([])
                     
                 else:
                     probs_most_likely = torch.tensor([])
                     probs_secondry_most_likely = torch.tensor([])
-                    probs_only_answer_most_likely = torch.tensor([])
+                    # probs_only_answer_most_likely = torch.tensor([])
                     
                 probability_most_likely = (
                     generation_text_most_likely,
                     generation_tokens_most_likely,
                     probs_most_likely,
                     probs_secondry_most_likely,
-                    probs_cad_fixed_most_likely,
-                    probs_cad_axiomatic_most_likely,
-                    probs_cad_difference_most_likely
+                    # probs_cad_fixed_most_likely,
+                    # probs_cad_axiomatic_most_likely,
+                    # probs_cad_difference_most_likely
                 )
                 result_dict[id_]['probability_most_likely'] = probability_most_likely
                 
@@ -406,9 +406,9 @@ def get_probability(args):
                     prob[1],
                     [round(i, 4) for i in prob[2].reshape(1, -1).tolist()[0]],
                     [round(i, 4) for i in prob[3].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in prob[4].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in prob[5].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in prob[6].reshape(1, -1).tolist()[0]],
+                    # [round(i, 4) for i in prob[4].reshape(1, -1).tolist()[0]],
+                    # [round(i, 4) for i in prob[5].reshape(1, -1).tolist()[0]],
+                    # [round(i, 4) for i in prob[6].reshape(1, -1).tolist()[0]],
                 ) for prob in probabilities]
                 
                 probability_most_likely_jsl = (
@@ -416,9 +416,9 @@ def get_probability(args):
                     probability_most_likely[1],
                     [round(i, 4) for i in probability_most_likely[2].reshape(1, -1).tolist()[0]],
                     [round(i, 4) for i in probability_most_likely[3].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in probability_most_likely[4].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in probability_most_likely[5].reshape(1, -1).tolist()[0]],
-                    [round(i, 4) for i in probability_most_likely[6].reshape(1, -1).tolist()[0]]
+                    # [round(i, 4) for i in probability_most_likely[4].reshape(1, -1).tolist()[0]],
+                    # [round(i, 4) for i in probability_most_likely[5].reshape(1, -1).tolist()[0]],
+                    # [round(i, 4) for i in probability_most_likely[6].reshape(1, -1).tolist()[0]]
                 )
                 result_item = {
                     'id': id_,
@@ -445,7 +445,7 @@ if __name__ == "__main__":
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
