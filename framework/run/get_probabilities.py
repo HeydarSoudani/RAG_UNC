@@ -174,6 +174,8 @@ def get_probability(args):
         p_generation = torch.cat((prompt, _generation), dim=0)
         target_ids = p_generation.clone()
         target_ids[:len_prompt] = -100
+        
+        # print(f"Model input: {torch.reshape(p_generation, (1, -1))}")
         model_output = model(torch.reshape(p_generation, (1, -1)), labels=target_ids, output_hidden_states=False)
         
         _logits = model_output['logits'][0, len_prompt-1:-1]
@@ -281,7 +283,7 @@ def get_probability(args):
                 generation_most_likely = sample['cleaned_most_likely_generation_ids'].to(args.device)
                 generation_text_most_likely = sample['cleaned_most_likely_generation']
                 generation_tokens_most_likely = [tokenizer.decode([token_id], skip_special_tokens=True) for token_id in generation_most_likely if token_id != 1]
-                                
+      
                 if id_ in _sequences_secondry:
                     prompt_secondry = _sequences_secondry[id_]['prompt'].to(args.device)
                 
@@ -387,7 +389,7 @@ def get_probability(args):
                     probs_most_likely = torch.tensor([])
                     probs_secondry_most_likely = torch.tensor([])
                     # probs_only_answer_most_likely = torch.tensor([])
-                    
+                
                 probability_most_likely = (
                     generation_text_most_likely,
                     generation_tokens_most_likely,
@@ -398,7 +400,6 @@ def get_probability(args):
                     # probs_cad_difference_most_likely
                 )
                 result_dict[id_]['probability_most_likely'] = probability_most_likely
-                
                 
                 # = Write to the jsonl file
                 probabilities_jsl = [(
@@ -428,8 +429,8 @@ def get_probability(args):
                     'probability_most_likely': probability_most_likely_jsl   
                 }
                 jl_ofile.write(json.dumps(result_item) + '\n')
-               
-    ### === Save the sequences result ======
+                
+    ## === Save the sequences result ======
     with open(probabilities_output_file, 'wb') as ofile:
         pickle.dump(result_dict, ofile)
     print(f"Results saved to {probabilities_output_file}")
@@ -437,22 +438,24 @@ def get_probability(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'nqswap', 'trivia', 'popqa',
-        'webquestions', 'squad1', 'nq',
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
+        'nqgold', 'trivia', 'popqa',
+        'webquestions', 'squad1', 'nq', 'nqswap',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
+        'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
     

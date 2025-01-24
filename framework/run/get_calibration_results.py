@@ -96,7 +96,7 @@ def get_calibration_results(args):
         similarities_input_file = f'{results_dir}/similarities_generation.pkl'
         correctness_input_file = f'{results_dir}/correctness.pkl'
         uncertainty_mars_input_file = f'{results_dir}/{generation_type}/uncertainty_mars_generation.pkl'
-        
+        uncertainty_bb_input_file = f'{results_dir}/uncertainty_bb_generation.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
@@ -106,6 +106,8 @@ def get_calibration_results(args):
             correctness_results  = pickle.load(f)
         with open(uncertainty_mars_input_file, 'rb') as f:
             uncertainty_mars_results  = pickle.load(f)
+        with open(uncertainty_bb_input_file, 'rb') as f:
+            uncertainty_bb_results  = pickle.load(f)
         
         # === Read data ============================
         # 
@@ -147,10 +149,10 @@ def get_calibration_results(args):
         uncertainty_mars_df = pd.DataFrame.from_dict(uncertainty_mars_small)
         uncertainty_mars_df.rename(columns={'ids': 'id'}, inplace=True) 
         # 
-        # uncertainty_bb_df = pd.DataFrame(uncertainty_bb_results)
-        # uncertainty_bb_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
-        # uncertainty_bb_small = dict((k, uncertainty_bb_df[k]) for k in uncertainty_bb_keys_to_use)
-        # uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
+        uncertainty_bb_df = pd.DataFrame(uncertainty_bb_results)
+        uncertainty_bb_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
+        uncertainty_bb_small = dict((k, uncertainty_bb_df[k]) for k in uncertainty_bb_keys_to_use)
+        uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
 
         # 
         # if main_prompt_format != 'only_q':
@@ -158,7 +160,7 @@ def get_calibration_results(args):
         with open(axiomatic_variables_input_file, 'rb') as f:
             axiomatic_variables_results  = pickle.load(f)
         axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
-        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
+        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(uncertainty_bb_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
         # else:
         #     result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
         
@@ -401,18 +403,19 @@ def get_calibration_results(args):
         result_dict['correctness'] = correctness_results
         
         # Get uncertainty
-        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg'
+        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS', 'degree_u', 'ecc_u', 'spectral_u']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg' 'degree_u', 'ecc_u', 'spectral_u'
             
-            unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
+            if uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']:
+                unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
+                unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            elif uncertainty_model in ['degree_u', 'ecc_u', 'spectral_u']:
+                unc_model_key_main_prompt = uncertainty_model
+                unc_model_key_second_prompt = uncertainty_model
             
-            for type_ in ['normal', 'calibrated']: #
+            for type_ in ['normal']: # , 'calibrated'
                 
                 if type_ == 'calibrated':
                     label_ = f"{uncertainty_model}_calibrated"
-                    # result_df_main_prompt[f'calibrated_{unc_model_key_main_prompt}'] = (
-                    #     (1.5 - result_df_main_prompt['axiomatic_coef'])*result_df_main_prompt[unc_model_key_main_prompt]
-                    # )
-                    # print(f"Coefs.: {(0.3, 0.7)}")
                     result_df_main_prompt['axiomatic_coef'] = [
                         get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6))
                         for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
@@ -437,9 +440,9 @@ def get_calibration_results(args):
                 result_dict[label_]["Unc._value"] = uncertainty_values_filtered.mean()
                 result_dict[label_]["AUROC (Unc.)"] = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values)
                 
-                confidence_values = uncertainty_to_confidence_min_max(uncertainty_values_filtered)
-                result_dict[label_]['Conf._normalized'] = confidence_values.mean()
-                result_dict[label_]["AUROC (Conf.)"] = sklearn.metrics.roc_auc_score(correctness_bin[uncertainty_values <UNC_THERESHOLD], confidence_values)
+                # confidence_values = uncertainty_to_confidence_min_max(uncertainty_values_filtered)
+                # result_dict[label_]['Conf._normalized'] = confidence_values.mean()
+                # result_dict[label_]["AUROC (Conf.)"] = sklearn.metrics.roc_auc_score(correctness_bin[uncertainty_values <UNC_THERESHOLD], confidence_values)
                 
                 ln_predictive_entropy_pearson_corr, ln_predictive_entropy_pearson_p_value = pearsonr(one_minus_correctness, uncertainty_values)
                 ln_predictive_entropy_spearman_corr, ln_predictive_entropy_spearman_p_value = spearmanr(one_minus_correctness, uncertainty_values)
@@ -449,7 +452,7 @@ def get_calibration_results(args):
                 result_dict[label_]['spearman_p_value'] = ln_predictive_entropy_spearman_p_value
                 
                 # For sig_test
-                unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+                
                 common_ids = result_df_main_prompt[result_df_main_prompt['id'].isin(result_df_second_prompt['id'])]['id']
                 result_df_main_prompt_common = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
                 result_df_second_prompt_common = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
@@ -507,15 +510,15 @@ def get_calibration_results(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--model', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

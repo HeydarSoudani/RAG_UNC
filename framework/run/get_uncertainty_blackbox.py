@@ -29,13 +29,13 @@ def get_uncertainty_bb(args):
     """.replace('   ', ''))
     
     # === Define IN/OUT files ========================
-    model = args.model.split('/')[-1]
-    base_dir = f'{args.output_dir}/{args.dataset}/{args.run_id}/{args.main_prompt_format}'
-    generation_file = f'{base_dir}/{model}_{args.temperature}_cleaned_generation.pkl'
-    uncertainty_output_file = f'{base_dir}/{model}_{args.temperature}_uncertainty_bb_generation.pkl'
-    uncertainty_output_jsonl_file = f'{base_dir}/components_output/{model}_{args.temperature}_uncertainty_bb_generation.jsonl'
-    os.makedirs(f'{base_dir}/components_output', exist_ok=True)
-
+    model_ = args.model.split('/')[-1]
+    base_dir = f'{args.output_dir}/{model_}/{args.dataset}/{args.subsec}/{args.run_id}/{args.main_prompt_format}__{args.second_prompt_format}'
+    # inputs
+    generation_file = f'{base_dir}/cleaned_generation_{args.generation_type}.pkl'
+    # outputs
+    uncertainty_output_file = f'{base_dir}/uncertainty_bb_generation.pkl'
+    uncertainty_output_jsonl_file = f'{base_dir}/uncertainty_bb_generation.jsonl'
     
     with open(generation_file, 'rb') as infile:
         sequences = pickle.load(infile)
@@ -262,7 +262,7 @@ def get_uncertainty_bb(args):
     with open(uncertainty_output_jsonl_file, 'w') as jl_ofile:
         for idx, sample in tqdm(enumerate(sequences)):
             
-            # if idx == 1:
+            # if idx == 10:
             #     break
             
             question_id = sample['id']
@@ -311,12 +311,11 @@ def get_uncertainty_bb(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
     parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
-        'topicoqa_org', 'topicoqa_his', 'topicoqa_rw',
+        'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
@@ -329,10 +328,13 @@ if __name__ == "__main__":
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--accuracy_metric', type=str, default="bem_score", choices=[
+    
+    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
+    parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
+    
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     
@@ -344,6 +346,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     
+    parser.add_argument('--generation_type', type=str, default='normal', choices=['normal', 'cad'])
+    parser.add_argument('--alpha_generation', type=float, default=0.5)
+    parser.add_argument('--alpha_probability', type=float, default=0.5)
     parser.add_argument('--affinity_mode', type=str, default='disagreement')
     parser.add_argument('--run_id', type=str, default='run_0')
     parser.add_argument('--device', type=int, default=0)

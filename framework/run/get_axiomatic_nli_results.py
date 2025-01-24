@@ -106,17 +106,20 @@ def get_axiomatic_results(args):
         generation_file = f'{results_dir}/cleaned_generation_{args.generation_type}.pkl'
         similarities_input_file = f'{results_dir}/similarities_generation.pkl'
         correctness_input_file = f'{results_dir}/correctness.pkl'
-        likelihoods_input_file = f'{results_dir}/{generation_type}/uncertainty_mars_generation.pkl'
+        uncertainty_mars_input_file = f'{results_dir}/{generation_type}/uncertainty_mars_generation.pkl'
+        uncertainty_bb_input_file = f'{results_dir}/uncertainty_bb_generation.pkl'
+        axiomatic_variables_input_file = f'{results_dir}/{generation_type}/axiomatic_variables.pkl'
         
         with open(generation_file, 'rb') as infile:
             cleaned_sequences = pickle.load(infile)
         with open(similarities_input_file, 'rb') as f:
             similarities_dict = pickle.load(f)
-        with open(likelihoods_input_file, 'rb') as f:
-            likelihoods_results  = pickle.load(f)
         with open(correctness_input_file, 'rb') as f:
             correctness_results  = pickle.load(f)
-        
+        with open(uncertainty_mars_input_file, 'rb') as f:
+            uncertainty_mars_results  = pickle.load(f)
+        with open(uncertainty_bb_input_file, 'rb') as f:
+            uncertainty_bb_results  = pickle.load(f)
         
         # === Read data ============================
         # 
@@ -151,25 +154,29 @@ def get_axiomatic_results(args):
             # 'average_predictive_entropy_fifth_prompt', 'predictive_entropy_over_concepts_fifth_prompt',
             # 'average_predictive_entropy_importance_max_fifth_prompt', 'predictive_entropy_over_concepts_importance_max_fifth_prompt',
         )
-        likelihoods = likelihoods_results
-        likelihoods_small = dict((k, likelihoods[k]) for k in keys_to_use)
-        for key in likelihoods_small:
+        uncertainty_mars = uncertainty_mars_results
+        uncertainty_mars_small = dict((k, uncertainty_mars[k]) for k in keys_to_use)
+        for key in uncertainty_mars_small:
             if key == 'average_predictive_entropy_on_subsets':
-                likelihoods_small[key].shape
-            if type(likelihoods_small[key]) is torch.Tensor:
-                likelihoods_small[key] = torch.squeeze(likelihoods_small[key].cpu())
-        likelihoods_df = pd.DataFrame.from_dict(likelihoods_small)
-        likelihoods_df.rename(columns={'ids': 'id'}, inplace=True) 
-
+                uncertainty_mars_small[key].shape
+            if type(uncertainty_mars_small[key]) is torch.Tensor:
+                uncertainty_mars_small[key] = torch.squeeze(uncertainty_mars_small[key].cpu())
+        uncertainty_mars_df = pd.DataFrame.from_dict(uncertainty_mars_small)
+        uncertainty_mars_df.rename(columns={'ids': 'id'}, inplace=True) 
+        # 
+        uncertainty_bb_df = pd.DataFrame(uncertainty_bb_results)
+        uncertainty_bb_keys_to_use = ('id', 'degree_u', 'ecc_u', 'spectral_u')
+        uncertainty_bb_small = dict((k, uncertainty_bb_df[k]) for k in uncertainty_bb_keys_to_use)
+        uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
+        
         # 
         if main_prompt_format != 'only_q':
-            axiomatic_variables_input_file = f'{results_dir}/{generation_type}/axiomatic_variables.pkl'
             with open(axiomatic_variables_input_file, 'rb') as f:
                 axiomatic_variables_results  = pickle.load(f)
             axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
-            result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
+            result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(uncertainty_bb_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
         else:
-            result_df = generations_df.merge(similarities_df, on='id').merge(likelihoods_df, on='id').merge(correctness_df, on='id')
+            result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(uncertainty_bb_df, on='id').merge(correctness_df, on='id')
         
         # 
         result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
@@ -431,10 +438,18 @@ def get_axiomatic_results(args):
         # answer_equal_list, answer_not_equal_list = get_output_equality()
 
         ### === Step2: Compute Axioms =========================
-        for uncertainty_model in ['PE']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS'
+        for uncertainty_model in ['spectral_u']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'degree_u', 'ecc_u', 'spectral_u'
             print(f"Unc. Model: {uncertainty_model}")
-            unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
-            unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            
+            if uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']:
+                unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
+                unc_model_key_second_prompt = keys_mapping['main_prompt'][uncertainty_model]
+            elif uncertainty_model in ['degree_u', 'ecc_u', 'spectral_u']:
+                unc_model_key_main_prompt = uncertainty_model
+                unc_model_key_second_prompt = uncertainty_model
+            
+            unc_values = result_df_main_prompt[unc_model_key_main_prompt]
+            
             
             # === 2) Get Axiomatic Coef.
             result_df_main_prompt['axiomatic_coef'] = [
@@ -462,6 +477,15 @@ def get_axiomatic_results(args):
                 coef_unc_mean=(f'{unc_model_key_main_prompt}_cal', 'mean')
             ).reset_index()
             print(result)
+            
+            # result = result_df_main_prompt_filtered.groupby('axiom_num_correctness').agg(
+            #     true_ratio=('exact_match', lambda x: x.sum() / len(x)),
+            #     average_uncertainty=(unc_model_key_main_prompt, 'mean'),
+            #     row_count=(unc_model_key_main_prompt, 'count'),
+            #     coef_mean=('axiomatic_coef', 'mean'),
+            #     coef_unc_mean=(f'{unc_model_key_main_prompt}_cal', 'mean')
+            # ).reset_index()
+            # print(result)
             
             all_axioms_ids = []
             for axiom_num in ['1', '2', '4', '5', 'others']: # '1', '2', '4', '5', 'other'
@@ -495,8 +519,6 @@ def get_axiomatic_results(args):
                 for type_ in ['normal', 'calibrated']: # 'calibrated'
                     
                     if type_ == 'calibrated':
-                        # uncertainty_values_main_prompt = (1.15 - selected_main_prompt_df['axiomatic_coef']) * selected_main_prompt_df[unc_model_key_main_prompt]
-                        # uncertainty_values_second_prompt = (1.5 - selected_main_prompt_df['axiomatic_coef']) * selected_second_prompt_df[unc_model_key_second_prompt]
                         uncertainty_values_main_prompt = selected_main_prompt_df[f"{unc_model_key_main_prompt}_cal"]
                         
                     else:
@@ -570,20 +592,20 @@ def get_axiomatic_results(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'nqswap', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--second_prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--second_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
@@ -627,6 +649,7 @@ if __name__ == "__main__":
     
     set_seed(args.seed)
     get_axiomatic_results(args)
+    
     
     # python framework/run/get_axiomatic_nli_results.py
     

@@ -13,7 +13,7 @@ import logging
 import argparse
 import numpy as np
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, LlamaTokenizer
 
 from utils.utils import set_seed
 from dataset import single_hop
@@ -45,7 +45,9 @@ def generation(args):
         device_map="auto"
     )
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
-    
+    print(tokenizer.__class__.__name__)
+    print(tokenizer.vocab_size)
+
     if tokenizer.__class__.__name__ == 'LlamaTokenizer':
         eos_token_id = [tokenizer.encode(_)[-1] for _ in ['.', '\n']] + [29889]  # seems to be '.' as well
         if 'mistral' in args.model:
@@ -93,10 +95,13 @@ def generation(args):
     questions = train_dataset
     dataloader = torch.utils.data.DataLoader(questions, batch_size=1)
     
-    ### === Generation loop ====================== 
+    # ### === Generation loop =======================
     with torch.no_grad():
         sequences = []
         for idx, batch in tqdm(enumerate(dataloader)):
+            
+            # if idx == 400:
+            #     break
             
             # === Generate multiple time ==========
             generations = torch.ones(
@@ -142,12 +147,6 @@ def generation(args):
                 ) # We already skip special tokens
             sequence_dict['generated_texts'] = generated_texts
             
-            # print(generations[1])
-            # print([tokenizer.decode([id]) for id in generations[1]])
-            # print(generated_texts[1])
-            # print(generated_texts)
-            # print('\n')
-            
             # === Generate most likely =============
             input_ids = batch['input_ids'].to(args.device).reshape(1, -1)
             if args.decoding_method == 'beam_search':
@@ -188,18 +187,18 @@ def generation(args):
                     pickle.dump(sequences, ofile)
                 print(f"Results saved to {sequences_output_file}")
 
-    ### === Save the sequences result ============
+
+    ### === Save the sequences result ===============
     with open(sequences_output_file, 'wb') as ofile:
         pickle.dump(sequences, ofile)
     print(f"Results saved to {sequences_output_file}")
 
 
-    ### === Loop for cleaning the generated data =
+    ### === Loop for cleaning the generated data ===
     # = Second file in the main code =  
     # generation_file = f'{base_dir}/generation_{args.generation_type}.pkl'
     # with open(generation_file, 'rb') as infile:
     #     sequences = pickle.load(infile)
-    
     
     patterns_to_remove = ['\.', '\n', '\n\n', '\)\n\n', 'Document', ' \n\n', ':\n', '\n\nDocument']
     pattern = r"(?:{})+$".format("|".join(map(re.escape, patterns_to_remove)))
@@ -207,6 +206,7 @@ def generation(args):
     print('Cleaning the generated data ...')
     cleaned_sequences = []
     for idx, sample in tqdm(enumerate(sequences)):
+        
         discard = False
         cleaned_generations = torch.ones_like(sample['generations'])
         question = sample['question']
@@ -218,12 +218,13 @@ def generation(args):
         generated_text_cleaned_1 = re.sub(pattern, '', generated_text)
         generated_text_cleaned_1 = generated_text_cleaned_1.replace('"', '')
         generated_text_cleaned_1 = re.sub(r'\s*,\s*', ' ', generated_text_cleaned_1)
+        generated_text_cleaned_1 = re.sub(r"^\s+", "", generated_text_cleaned_1)
         generated_text = generated_text_cleaned_1
         generated_text_cleaned = re.sub(r'[^\x00-\x7f]',r'', generated_text)
         
         if generated_text_cleaned == generated_text:
-            if tokenizer.__class__.__name__=='PreTrainedTokenizerFast':
-                clean_ids = torch.tensor(tokenizer(generated_text)['input_ids'][0:], device=args.device)
+            if tokenizer.__class__.__name__ in ['PreTrainedTokenizerFast', 'Qwen2Tokenizer']:
+                clean_ids = torch.tensor(tokenizer(generated_text, add_special_tokens=False)['input_ids'][0:], device=args.device)
             else:
                 clean_ids = torch.tensor(tokenizer(generated_text)['input_ids'][1:], device=args.device)
 
@@ -236,6 +237,7 @@ def generation(args):
                 generated_text_cleaned_1 = re.sub(pattern, '', generated_text)
                 generated_text_cleaned_1 = generated_text_cleaned_1.replace('"', '')
                 generated_text_cleaned_1 = re.sub(r'\s*,\s*', ' ', generated_text_cleaned_1)
+                generated_text_cleaned_1 = re.sub(r"^\s+", "", generated_text_cleaned_1)
                 generated_text = generated_text_cleaned_1
                 generated_text_cleaned = re.sub(r'[^\x00-\x7f]',r'', generated_text)
                 
@@ -245,8 +247,8 @@ def generation(args):
                     break
 
                 cleaned_generated_texts.append(generated_text_cleaned)
-                if tokenizer.__class__.__name__=='PreTrainedTokenizerFast':
-                    clean_ids = torch.tensor(tokenizer(generated_text)['input_ids'][0:], device=args.device)
+                if tokenizer.__class__.__name__ in ['PreTrainedTokenizerFast', 'Qwen2Tokenizer']:
+                    clean_ids = torch.tensor(tokenizer(generated_text, add_special_tokens=False)['input_ids'][0:], device=args.device)
                 else:
                     clean_ids = torch.tensor(tokenizer(generated_text)['input_ids'][1:], device=args.device)
                 cleaned_generations[i, :min(len(clean_ids), max_len_of_generations)] = clean_ids[:max_len_of_generations]
@@ -256,10 +258,6 @@ def generation(args):
                 sample['cleaned_generations'] = cleaned_generations
                 cleaned_sequences.append(sample)
     
-            # print(idx)
-            # print(cleaned_generated_texts)
-    
-    # print(cleaned_sequences)
     print(len(cleaned_sequences))
     ### === Save the sequences result ============
     with open(cleaned_sequences_output_file, 'wb') as ofile:
@@ -270,14 +268,14 @@ def generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+    parser.add_argument('--model', type=str, default='lmsys/vicuna-7b-v1.5')
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq', 'nqswap',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
     parser.add_argument('--main_prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
@@ -294,7 +292,7 @@ if __name__ == "__main__":
         'bem_score', 'exact_match', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
     ])
     parser.add_argument('--model_llama_eval', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.004)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument("--output_file_postfix", type=str, default="")
     
