@@ -95,9 +95,9 @@ if __name__ == "__main__":
     ## === Phase 2: Uncertainty computation
     # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
     # get_probability(args)
-    # get_likelihoods_mars(args)
+    get_likelihoods_mars(args)
     
-    # get_uncertainty_mars(args)
+    get_uncertainty_mars(args)
     get_uncertainty_bb(args)
     # get_uncertainty_sar(args) # TODO: sar_uncertainty
     

@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
-#SBATCH --time=5:00:00
+#SBATCH --time=8:00:00
 #SBATCH --output=script_logging/slurm_%A.out
 
 module load 2022
@@ -41,16 +41,16 @@ module load Java/11.0.2
     # llama3.1: "meta-llama/Llama-3.1-8B-Instruct"  --> pip install --upgrade transformers
 
 
-model="mistralai/Mistral-7B-Instruct-v0.3"
-dataset="nqgold"
-subsec="test"
-main_prompt_format="q_negative"
-second_prompt_format="only_q"
-fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
-run_id="run_0"
-generation_type="normal"
-alpha_generation=0.5
-alpha_probability=0.5
+# model="mistralai/Mistral-7B-Instruct-v0.3"
+# dataset="nqgold"
+# subsec="test"
+# main_prompt_format="q_negative"
+# second_prompt_format="only_q"
+# fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
+# run_id="run_0"
+# generation_type="normal"
+# alpha_generation=0.5
+# alpha_probability=0.5
 
 # model="mistralai/Mistral-7B-Instruct-v0.3"
 # dataset="trivia"
@@ -63,16 +63,16 @@ alpha_probability=0.5
 # alpha_generation=0.5
 # alpha_probability=0.5
 
-# model="mistralai/Mistral-7B-Instruct-v0.3"
-# dataset="popqa"
-# subsec="test"
-# main_prompt_format="only_q"
-# second_prompt_format="bm25_retriever_top1"
-# fraction_of_data_to_use=0.205    # nqgold 0.173 | trivia 0.057 | popqa 0.035
-# run_id="run_0"
-# generation_type="normal"
-# alpha_generation=0.5
-# alpha_probability=0.5
+model="mistralai/Mistral-7B-Instruct-v0.3"
+dataset="popqa"
+subsec="test"
+main_prompt_format="q_negative"
+second_prompt_format="only_q"
+fraction_of_data_to_use=0.205    # nqgold 0.173 | trivia 0.057 | popqa 0.035
+run_id="run_0"
+generation_type="normal"
+alpha_generation=0.5
+alpha_probability=0.5
 
 
 srun python $HOME/RAG_UNC/framework/run/run_framework.py \
