@@ -23,7 +23,7 @@ with open(auroc_cal_file, "r") as file:
 with open(accuracy_file, "r") as file:
     accuracy_data = json.load(file)
 
-llm_list = ['llama2'] # 'mistral', 'vicuna'
+llm_list = ['mistral'] # 'llama2', 'mistral', 'vicuna'
 
 datasets = ["NQ-open", "TriviaQA", "PopQA"]
 uncertainty_methods = ["PE", "PE+M", "SE", "SE+M", "Deg", "ECC", "EigV"]
@@ -49,7 +49,7 @@ x = np.arange(len(retrieval_models))
 
 
 for i, llm_name in enumerate(llm_list):
-    auroc_values = np.array(auroc_data[llm_name], dtype=float)
+    auroc_values = np.array(auroc_cal_data[llm_name], dtype=float)
     accuracy_values = np.array(accuracy_data[llm_name], dtype=float)
     
     for j in range(len(datasets)):
@@ -66,7 +66,7 @@ for i, llm_name in enumerate(llm_list):
         if i == 0:
             ax.set_title(datasets[j])
             
-        ax.set_ylim([45, 85])
+        ax.set_ylim([30, 90])
         ax_right.set_ylim([0, 80])
 
         ax.set_xticks(x + 3*bar_width)
@@ -94,46 +94,10 @@ unique_handles_labels = dict(zip(labels, handles))
 fig.legend(unique_handles_labels.values(), unique_handles_labels.keys(), loc="center right", bbox_to_anchor=(1.0, 0.5))
 
 
-plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc.png')
-plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc.pdf', format="pdf", bbox_inches="tight")
+plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc_cal.png')
+plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc_cal.pdf', format="pdf", bbox_inches="tight")
 # plt.show()
 
 
 # python framework/plots/auroc.py
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Llama2 After calibration: with 2 coef
-# auroc_values = np.array([
-#     [   # NQ
-#         [64.03, 62.08, 68.34, 66.75, 66.93, 68.93], # PE
-#         [65.69, 67.70, 69.61, 69.32, 66.53, 67.14], # SE
-#         [59.21, 59.14, 66.63, 66.91, 66.91, 69.41], # PE+M
-#         [60.70, 61.14, 67.10, 68.04, 65.35, 67.46]  # SE+M
-#     ], 
-#     [   # TQA
-#         [73.49, 69.14, 71.30, 70.10, 69.40, 72.37], # PE
-#         [76.69, 77.86, 81.53, 77.71, 77.92, 77.10], # SE
-#         [75.92, 70.44, 72.71, 71.70, 70.88, 74.73], # PE+M
-#         [75.87, 75.83, 80.79, 77.32, 77.66, 77.69]  # SE+M
-#     ], 
-#     [   # PQA
-#         [72.44, 56.98, 64.09, 62.07, 57.71, np.nan], # PE
-#         [78.11, 70.90, 70.65, 66.20, 63.95, np.nan], # SE
-#         [76.10, 58.39, 64.78, 62.93, 58.52, np.nan], # PE+M
-#         [76.65, 70.79, 71.13, 66.43, 64.37, np.nan]  # SE+M
-#     ]
-# ])

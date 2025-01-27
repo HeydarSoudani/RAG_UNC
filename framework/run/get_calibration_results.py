@@ -229,13 +229,9 @@ def get_calibration_results(args):
         
         return correctness_results, correctness_bin, one_minus_correctness
 
-    def get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.33, 0.33)):
-        C1, C2 = coefs[0], coefs[1]
-        
-        # switch_main = 1.0 if nli_main[0]==2 else 0.0
-        # switch_2ed = 1.0 if nli_sec[0]==2 else 0.0
-        # return C1*answer_equality_nli[1] + C2*switch_main*nli_main[1] + C3*switch_2ed*nli_sec[1]
-        return C1*answer_equality_nli[1] + C2*nli_main[1]
+    def get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.33, 0.33, 0.33)):
+        C1, C2, C3 = coefs[0], coefs[1], coefs[2]
+        return C1 * answer_equality_nli[1] + C2 * nli_main[1] + C3 * nli_sec[1]
     
     def plot_roc_correctness_vs_uncertainty(correctness, uncertainty, prefix):
         
@@ -403,7 +399,7 @@ def get_calibration_results(args):
         result_dict['correctness'] = correctness_results
         
         # Get uncertainty
-        for uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS', 'degree_u', 'ecc_u', 'spectral_u']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg' 'degree_u', 'ecc_u', 'spectral_u'
+        for uncertainty_model in ['PE', 'PE_MARS', 'SE', 'SE_MARS', 'degree_u', 'ecc_u', 'spectral_u']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg' 'degree_u', 'ecc_u', 'spectral_u'
             
             if uncertainty_model in ['PE', 'SE', 'PE_MARS', 'SE_MARS']:
                 unc_model_key_main_prompt = keys_mapping[f'{prompt_order}_prompt'][uncertainty_model]
@@ -412,12 +408,12 @@ def get_calibration_results(args):
                 unc_model_key_main_prompt = uncertainty_model
                 unc_model_key_second_prompt = uncertainty_model
             
-            for type_ in ['normal']: # , 'calibrated'
+            for type_ in ['normal', 'calibrated']: #
                 
                 if type_ == 'calibrated':
                     label_ = f"{uncertainty_model}_calibrated"
                     result_df_main_prompt['axiomatic_coef'] = [
-                        get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6))
+                        get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6, 0.0))
                         for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
                             result_df_main_prompt['answer_equality_nli'],
                             result_df_main_prompt['nli_relation_main'],
@@ -427,8 +423,13 @@ def get_calibration_results(args):
                     filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num_nli'].isin(['1', '2', '4', '5'])]
                     mean_value = filtered_df['axiomatic_coef'].mean()
                     std_value = filtered_df['axiomatic_coef'].std()
+                    C4 = 1.0 + mean_value
                     
-                    result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"] = (1.0+mean_value - result_df_main_prompt['axiomatic_coef']) * result_df_main_prompt[unc_model_key_main_prompt]                    
+                    if uncertainty_model == 'degree_u':
+                        result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"] = (C4 - result_df_main_prompt['axiomatic_coef']) * (result_df_main_prompt[unc_model_key_main_prompt]+0.9)
+                    else:
+                        result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"] = (C4 - result_df_main_prompt['axiomatic_coef']) * result_df_main_prompt[unc_model_key_main_prompt]
+                    
                     uncertainty_values = result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"]
                     # uncertainty_values = result_df_main_prompt[f"calibrated_{unc_model_key_main_prompt}"]
                 else:
@@ -452,7 +453,6 @@ def get_calibration_results(args):
                 result_dict[label_]['spearman_p_value'] = ln_predictive_entropy_spearman_p_value
                 
                 # For sig_test
-                
                 common_ids = result_df_main_prompt[result_df_main_prompt['id'].isin(result_df_second_prompt['id'])]['id']
                 result_df_main_prompt_common = result_df_main_prompt[result_df_main_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
                 result_df_second_prompt_common = result_df_second_prompt[result_df_second_prompt['id'].isin(common_ids)].set_index('id').loc[common_ids]
@@ -512,13 +512,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
     parser.add_argument('--dataset', type=str, default='popqa', choices=[
-        'nqgold', 'nqswap', 'trivia', 'popqa',
+        'nqgold', 'trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

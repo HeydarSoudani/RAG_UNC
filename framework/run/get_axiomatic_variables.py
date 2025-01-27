@@ -190,6 +190,8 @@ def get_axiomatic_variables(args):
             axiom_num = '4'
         if not answer_equality and nli_main[0] == 0 and nli_sec[0] == 2:
             axiom_num = '5'
+        # if not answer_equality and nli_main[0] == 0 and nli_sec[0] == 0:
+        #     axiom_num = '1'
         
         return axiom_num
     
@@ -353,15 +355,15 @@ def get_axiomatic_variables(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
-        'nqgold', 'nqswap', 'trivia', 'popqa',
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+        'nqgold', 'trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='rerank_retriever_top1', choices=[
+    parser.add_argument('--main_prompt_format', type=str, default='bm25_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

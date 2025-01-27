@@ -95,7 +95,7 @@ def generation(args):
     questions = train_dataset
     dataloader = torch.utils.data.DataLoader(questions, batch_size=1)
     
-    # ### === Generation loop =======================
+    ### === Generation loop =======================
     with torch.no_grad():
         sequences = []
         for idx, batch in tqdm(enumerate(dataloader)):
@@ -258,6 +258,7 @@ def generation(args):
                 sample['cleaned_generations'] = cleaned_generations
                 cleaned_sequences.append(sample)
     
+    # print(cleaned_sequences)
     print(len(cleaned_sequences))
     ### === Save the sequences result ============
     with open(cleaned_sequences_output_file, 'wb') as ofile:
@@ -268,7 +269,7 @@ def generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='lmsys/vicuna-7b-v1.5')
+    parser.add_argument('--model', type=str, default='lmsys/vicuna-13b-v1.5')
     parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq', 'nqswap',

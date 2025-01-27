@@ -87,14 +87,14 @@ if __name__ == "__main__":
     ### === Run Steps ============================
     set_seed(args.seed)
     ## === Phase 1: answer generation & cleaning
-    # if args.generation_type == 'normal':
-    #     generation(args)
-    # elif args.generation_type == 'cad':
-    #     generation_cad(args)
+    if args.generation_type == 'normal':
+        generation(args)
+    elif args.generation_type == 'cad':
+        generation_cad(args)
     
     ## === Phase 2: Uncertainty computation
-    # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
-    # get_probability(args)
+    get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
+    get_probability(args)
     get_likelihoods_mars(args)
     
     get_uncertainty_mars(args)
