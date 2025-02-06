@@ -155,16 +155,44 @@ def get_calibration_results(args):
         uncertainty_bb_df = pd.DataFrame.from_dict(uncertainty_bb_small)
 
         # 
-        # if main_prompt_format != 'only_q':
-        axiomatic_variables_input_file = f'{results_dir}/{generation_type}/axiomatic_variables.pkl'
-        with open(axiomatic_variables_input_file, 'rb') as f:
-            axiomatic_variables_results  = pickle.load(f)
-        axiomatic_variables_df = pd.DataFrame(axiomatic_variables_results)
-        result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(uncertainty_bb_df, on='id').merge(correctness_df, on='id').merge(axiomatic_variables_df, on='id')
-        # else:
-        #     result_df = generations_df.merge(similarities_df, on='id').merge(uncertainty_mars_df, on='id').merge(correctness_df, on='id')
+        if main_prompt_format != 'only_q':
+            axiomatic_variables_oe_input_file = f'{results_dir}/{generation_type}/axiomatic_variables_oe.pkl'
+            axiomatic_variables_gn_input_file = f'{results_dir}/{generation_type}/axiomatic_variables_gn.pkl'
+            axiomatic_variables_gk_input_file = f'{results_dir}/{generation_type}/axiomatic_variables_gk.pkl'
+            axiomatic_variables_gm_input_file = f'{results_dir}/{generation_type}/axiomatic_variables_gm.pkl'
+            with open(axiomatic_variables_oe_input_file, 'rb') as f:
+                axiomatic_variables_oe_results  = pickle.load(f)
+            with open(axiomatic_variables_gn_input_file, 'rb') as f:
+                axiomatic_variables_gn_results  = pickle.load(f)
+            with open(axiomatic_variables_gk_input_file, 'rb') as f:
+                axiomatic_variables_gk_results  = pickle.load(f)
+            with open(axiomatic_variables_gm_input_file, 'rb') as f:
+                axiomatic_variables_gm_results  = pickle.load(f)
+            
+            axiomatic_variables_oe_df = pd.DataFrame(axiomatic_variables_oe_results)
+            axiomatic_variables_gn_df = pd.DataFrame(axiomatic_variables_gn_results)
+            axiomatic_variables_gk_df = pd.DataFrame(axiomatic_variables_gk_results)
+            axiomatic_variables_gm_df = pd.DataFrame(axiomatic_variables_gm_results)
+            axiomatic_variables_oe_df = pd.DataFrame.from_dict(dict((k, axiomatic_variables_oe_df[k]) for k in ('id', 'output_equality_em', 'output_equality_nli', 'axiom_num_correctness')))
+            axiomatic_variables_gn_df = pd.DataFrame.from_dict(dict((k, axiomatic_variables_gn_df[k]) for k in ('id', 'groundedness_nli_main', 'groundedness_nli_second', 'axiom_num_nli')))
+            axiomatic_variables_gk_df = pd.DataFrame.from_dict(dict((k, axiomatic_variables_gk_df[k]) for k in ('id', 'groundedness_kldiv_main', 'groundedness_kldiv_second')))
+            axiomatic_variables_gm_df = pd.DataFrame.from_dict(dict((k, axiomatic_variables_gm_df[k]) for k in ('id', 'groundedness_minicheck_main', 'groundedness_minicheck_second', 'axiom_num_minicheck')))
+            
+            result_df = generations_df.merge(similarities_df, on='id')\
+                .merge(uncertainty_mars_df, on='id')\
+                .merge(uncertainty_bb_df, on='id')\
+                .merge(correctness_df, on='id')\
+                .merge(axiomatic_variables_oe_df, on='id')\
+                .merge(axiomatic_variables_gn_df, on='id')\
+                .merge(axiomatic_variables_gk_df, on='id')\
+                .merge(axiomatic_variables_gm_df, on='id')
+        else:
+            result_df = generations_df.merge(similarities_df, on='id')\
+                .merge(uncertainty_mars_df, on='id')\
+                .merge(uncertainty_bb_df, on='id')\
+                .merge(correctness_df, on='id')
         
-        result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
+        # result_df['len_most_likely_generation_length'] = result_df['most_likely_generation'].apply(lambda x: len(x.split()))
         return result_df
     
     # def get_axiomatic_coef(answer_equality, nli_main, nli_sec):
@@ -397,6 +425,32 @@ def get_calibration_results(args):
         correctness_results, correctness_bin, one_minus_correctness = get_correctness(result_df_main_prompt) 
         correctness = 1 - np.array(one_minus_correctness)
         result_dict['correctness'] = correctness_results
+             
+        # Get Coef AUROC
+        # coefs = { # For llama2
+        #     'kldiv': (0.05, 0.75, 0.2),
+        #     'nli': (0.1, 0.9, 0.0),
+        #     'minicheck': (0.05, 0.95, 0.0)
+        # }
+        coefs = { # For Mistral
+            'kldiv': (0.05, 0.75, 0.2),
+            'nli': (0.05, 0.95, 0.0),
+            'minicheck': (0.05, 0.95, 0.0)
+        }
+        
+        result_dict['Coef']= {}
+        for type_ in ['kldiv', 'nli', 'minicheck']:
+            result_df_main_prompt['axiomatic_coef'] = [
+                get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=coefs[type_])
+                for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
+                    result_df_main_prompt[f'output_equality_nli'],
+                    result_df_main_prompt[f'groundedness_{type_}_main'],
+                    result_df_main_prompt[f'groundedness_{type_}_second']
+                ), desc='Getting axiomatic coef. ...')
+            ]
+            uncertainty_values = result_df_main_prompt['axiomatic_coef']
+            result_dict['Coef'][type_] = sklearn.metrics.roc_auc_score(correctness_bin, uncertainty_values)
+        
         
         # Get uncertainty
         for uncertainty_model in ['PE', 'PE_MARS', 'SE', 'SE_MARS', 'degree_u', 'ecc_u', 'spectral_u']: # 'PE', 'SE', 'PE_MARS', 'SE_MARS', 'EigV', 'Ecc', 'Deg' 'degree_u', 'ecc_u', 'spectral_u'
@@ -408,22 +462,25 @@ def get_calibration_results(args):
                 unc_model_key_main_prompt = uncertainty_model
                 unc_model_key_second_prompt = uncertainty_model
             
-            for type_ in ['normal', 'calibrated']: #
+            for type_ in ['normal', 'kldiv', 'nli', 'minicheck']:
                 
-                if type_ == 'calibrated':
-                    label_ = f"{uncertainty_model}_calibrated"
+                if type_ != 'normal':
+                    
+                    # === Get Coef
+                    label_ = f"{uncertainty_model}_{type_}"
                     result_df_main_prompt['axiomatic_coef'] = [
-                        get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=(0.4, 0.6, 0.0))
+                        get_axiomatic_coef(answer_equality_nli, nli_main, nli_sec, coefs=coefs[type_])
                         for answer_equality_nli, nli_main, nli_sec in tqdm(zip(
-                            result_df_main_prompt['answer_equality_nli'],
-                            result_df_main_prompt['nli_relation_main'],
-                            result_df_main_prompt['nli_relation_second']
+                            result_df_main_prompt[f'output_equality_nli'],
+                            result_df_main_prompt[f'groundedness_{type_}_main'],
+                            result_df_main_prompt[f'groundedness_{type_}_second']
                         ), desc='Getting axiomatic coef. ...')
                     ]
-                    filtered_df = result_df_main_prompt[result_df_main_prompt['axiom_num_nli'].isin(['1', '2', '4', '5'])]
+                    filtered_df = result_df_main_prompt[result_df_main_prompt[f'axiom_num_correctness'].isin(['1', '2', '4', '5', 'others'])]
                     mean_value = filtered_df['axiomatic_coef'].mean()
                     std_value = filtered_df['axiomatic_coef'].std()
                     C4 = 1.0 + mean_value
+                    # ===============
                     
                     if uncertainty_model == 'degree_u':
                         result_df_main_prompt[f"{unc_model_key_main_prompt}_cal"] = (C4 - result_df_main_prompt['axiomatic_coef']) * (result_df_main_prompt[unc_model_key_main_prompt]+0.9)
@@ -437,7 +494,7 @@ def get_calibration_results(args):
                     uncertainty_values = result_df_main_prompt[f"{unc_model_key_main_prompt}"]
                 result_dict[label_]= {}
                 
-                uncertainty_values_filtered = uncertainty_values[uncertainty_values <UNC_THERESHOLD]
+                uncertainty_values_filtered = uncertainty_values[uncertainty_values < UNC_THERESHOLD]
                 result_dict[label_]["Unc._value"] = uncertainty_values_filtered.mean()
                 result_dict[label_]["AUROC (Unc.)"] = sklearn.metrics.roc_auc_score(1 - correctness_bin, uncertainty_values)
                 
@@ -511,14 +568,14 @@ def get_calibration_results(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'trivia', 'popqa', 'nqswap',
         'webquestions', 'squad1', 'nq',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'topicoqa',
     ])
-    parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test'])
-    parser.add_argument('--main_prompt_format', type=str, default='q_negative', choices=[
+    parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test'])
+    parser.add_argument('--main_prompt_format', type=str, default='contriever_retriever_top1', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',

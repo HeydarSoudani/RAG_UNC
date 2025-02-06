@@ -19,7 +19,6 @@ from get_uncertainty_sar import get_uncertainty_sar
 from get_axiomatic_variables import get_axiomatic_variables
 from get_correctness import get_correctness
 from get_calibration_results import get_calibration_results
-from get_axiomatic_nli_results import get_axiomatic_results
 
 from utils.utils import set_seed
 
@@ -87,25 +86,24 @@ if __name__ == "__main__":
     ### === Run Steps ============================
     set_seed(args.seed)
     ## === Phase 1: answer generation & cleaning
-    if args.generation_type == 'normal':
-        generation(args)
-    elif args.generation_type == 'cad':
-        generation_cad(args)
+    # if args.generation_type == 'normal':
+    #     generation(args)
+    # elif args.generation_type == 'cad':
+    #     generation_cad(args)
     
     ## === Phase 2: Uncertainty computation
-    get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
-    get_probability(args)
-    get_likelihoods_mars(args)
+    # get_similarity(args)       # this generates importance score | # works with: pip install transformers==4.37.2
+    # get_probability(args)
+    # get_likelihoods_mars(args)
     
-    get_uncertainty_mars(args)
-    get_uncertainty_bb(args)
+    # get_uncertainty_mars(args)
+    # get_uncertainty_bb(args)
     # get_uncertainty_sar(args) # TODO: sar_uncertainty
     
     ## === Phase 3: correctness and calibration results
-    get_correctness(args)
+    # get_correctness(args)
     get_axiomatic_variables(args)
     get_calibration_results(args)
-    # get_axiomatic_results(args)
     
     
     # python framework/run/run_framework.py

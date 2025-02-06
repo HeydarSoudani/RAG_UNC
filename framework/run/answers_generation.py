@@ -100,7 +100,7 @@ def generation(args):
         sequences = []
         for idx, batch in tqdm(enumerate(dataloader)):
             
-            # if idx == 400:
+            # if idx == 10:
             #     break
             
             # === Generate multiple time ==========
@@ -229,7 +229,7 @@ def generation(args):
                 clean_ids = torch.tensor(tokenizer(generated_text)['input_ids'][1:], device=args.device)
 
             sample['cleaned_most_likely_generation'] = generated_text_cleaned
-            sample['cleaned_most_likely_generation_ids'] =  clean_ids
+            sample['cleaned_most_likely_generation_ids'] = clean_ids
 
             for i, generated_text in enumerate(generated_texts):
                 
@@ -269,7 +269,7 @@ def generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='lmsys/vicuna-13b-v1.5')
+    parser.add_argument('--model', type=str, default='deepseek-ai/DeepSeek-R1-Distill-Llama-8B')
     parser.add_argument('--dataset', type=str, default='trivia', choices=[
         'nqgold', 'trivia', 'popqa',
         'webquestions', 'squad1', 'nq', 'nqswap',
