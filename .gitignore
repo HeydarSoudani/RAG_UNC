@@ -119,18 +119,14 @@ __MACOSX
 .locks
 ckpts
 
-baselines/
 datasets/
-processed_datasets/
-pretrained_models/
 script_logging/
-models--meta-llama--Llama-2-7b-chat-hf/
-
-framework/metrics/vocab.txt
-framework/metrics/bert-tensorflow2-answer-equivalence-bem-v1/
-framework/run_output/
-framework/plots/imgs/
-framework/plots/results/
 test/
-truth_torch_framework/
+
+1_mars_framework/run_output/
+1_mars_framework/get_results/
+1_mars_framework/pretrained_models/
+1_mars_framework/metrics/vocab.txt
+1_mars_framework/metrics/bert-tensorflow2-answer-equivalence-bem-v1/
+
 
