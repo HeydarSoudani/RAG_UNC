@@ -40,7 +40,7 @@ dataset2title = {
 
 
 
-llm_list = ['llama2'] # mistral
+llm_list = ['llama2'] # llama2, mistral
 datasets = [
     {"dataset": 'nqgold', "subsec": 'test'},
     # {"dataset": 'trivia', "subsec": 'dev'},
@@ -49,12 +49,12 @@ datasets = [
 
 # 
 retrieval_models = ["BM25", "Contriever", "Rerank", r'$\mathrm{Doc^{+}}$']
-uncertainty_methods = ["PE", "SE", "EigV", "Deg"]
+uncertainty_methods = ["PE", "SE", "EigV", "ECC"]
 calibration_methods = ['normal', 'kldiv', 'nli', 'minicheck']
 colors = ['darkgrey', 'skyblue', 'cornflowerblue', 'steelblue']
 
 
-fig, axes = plt.subplots(len(datasets), len(uncertainty_methods), figsize=(len(uncertainty_methods)*4, len(datasets)*3.7), sharey=True)
+fig, axes = plt.subplots(len(datasets), len(uncertainty_methods), figsize=(len(uncertainty_methods)*4, len(datasets)*3.6), sharey=True)
 fig.subplots_adjust(right=0.8)  # Adjust spacing to avoid overlap
 
 if len(llm_list) == 1:
@@ -132,7 +132,7 @@ unique_handles_labels = dict(zip(labels, handles))
 fig.legend(unique_handles_labels.values(), unique_handles_labels.keys(), loc="upper center", ncol=len(calibration_methods)+1, bbox_to_anchor=(0.5, 1.0), fontsize=14)
 
 plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc_cal.png')
-plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc_cal.pdf', format="pdf", bbox_inches="tight", dpi=300)
+plt.savefig(f'{FOLDER_OUTPUT_PATH}/auroc_cal.pdf', format="pdf", bbox_inches="tight", dpi=500)
 
 
 # python framework/get_results/auroc_calibrated.py
