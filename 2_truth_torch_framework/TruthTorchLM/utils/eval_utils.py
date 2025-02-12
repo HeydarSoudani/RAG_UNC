@@ -5,6 +5,7 @@ from TruthTorchLM.generation import generate_with_truth_value
 from TruthTorchLM.templates import DEFAULT_SYSTEM_BENCHMARK_PROMPT, DEFAULT_USER_PROMPT
 import wandb
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, f1_score, precision_score, recall_score
+from scipy.stats import pearsonr, spearmanr
 import pandas as pd
 import numpy as np
 
@@ -156,6 +157,14 @@ def metric_score(metric_names:list[str], generation_correctness:list, truth_valu
         auarc = area_under_accuracy_coverage_curve(truth_values, generation_correctness)
         eval_dict['auarc'] = auarc
 
+    if 'pearson' in metric_names:
+        pearson, _ = pearsonr(generation_correctness, truth_values)
+        eval_dict['pearson'] = pearson
+    
+    if 'spearman' in metric_names:    
+        spearman, _ = spearmanr(generation_correctness, truth_values)
+        eval_dict['spearman'] = spearman
+
     if 'accuracy' in metric_names:
         normalized_truth_values = np.array(normalized_truth_values)
         accuracy = np.mean((normalized_truth_values > 0.5) == generation_correctness)
@@ -189,7 +198,7 @@ def metric_score(metric_names:list[str], generation_correctness:list, truth_valu
     return eval_dict
 
 
-def run_over_dataset(dataset: Union[str, list], model:Union[str,PreTrainedModel],  truth_methods: list, tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast]=None,
+def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,PreTrainedModel],  truth_methods: list, tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast]=None,
                           correctness_evaluator = None, previous_context:list =[{'role': 'system', 'content': DEFAULT_SYSTEM_BENCHMARK_PROMPT}], user_prompt:str = DEFAULT_USER_PROMPT, seed:int = 0, return_method_details:bool = False, wandb_run = None, 
                           wandb_push_method_details:bool = False, batch_generation=True,  add_generation_prompt = True, continue_final_message = False, **kwargs):
     """
@@ -197,6 +206,7 @@ def run_over_dataset(dataset: Union[str, list], model:Union[str,PreTrainedModel]
 
     Args:
         dataset (Union[str, list]): Dataset to evaluate on
+        with_rag (bool, optional): Whether prompt contains document. Defaults to False.
         model (Union[str,PreTrainedModel]): Model to use for generation
         truth_methods (list): List of truth value estimation methods to evaluate
         tokenizer (Union[PreTrainedTokenizer, PreTrainedTokenizerFast], optional): Tokenizer for the model. Defaults to None.
@@ -249,9 +259,14 @@ def run_over_dataset(dataset: Union[str, list], model:Union[str,PreTrainedModel]
 
     for i in tqdm(range(len(dataset))):
         messages = previous_context.copy()
-        messages.append({'role': 'user', 'content': user_prompt.format(question_context = dataset[i]['question'])})
+        
+        if with_rag:
+            messages.append({'role': 'user', 'content': user_prompt.format(question_context=dataset[i]['question'], document=dataset[i]['context'])})
+        else:
+            messages.append({'role': 'user', 'content': user_prompt.format(question_context=dataset[i]['question'])})
 
-        #print(messages)
+        # print('\n================')
+        # print(messages)
 
         truth_dict = generate_with_truth_value(model = model, messages = messages, question_context = dataset[i]['question'], truth_methods = truth_methods, tokenizer=tokenizer,
         generation_seed = seed, batch_generation=batch_generation, add_generation_prompt=add_generation_prompt, continue_final_message=continue_final_message, **kwargs)

@@ -5,6 +5,7 @@ DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant. Give short and precise ans
 DEFAULT_SYSTEM_BENCHMARK_PROMPT = 'You are a helpful assistant. Answer the following question in a single brief but complete sentence.'
 
 DEFAULT_USER_PROMPT = 'Question: {question_context} Answer:'
+DEFAULT_RAG_USER_PROMPT = 'Document: {document}\nQuestion: {question_context} Answer:'
 
 PTRUE_SYSTEM_PROMPT = 'You are a helpful, respectful and honest question-answer evaluator. You will be given a question, some brainstormed ideas and a generated answer. Evaluate the generate answer as true or false considering the question and brainstormed ideas. Output "The generated answer is true" or "The generated answer is false".'
 PTRUE_USER_PROMPT = 'Question:{question_context}\nHere are some ideas that were brainstormed:{ideas}\nGenerated answer:{generated_text}'

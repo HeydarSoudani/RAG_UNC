@@ -13,7 +13,8 @@ import wandb
 def evaluate_truth_method(dataset: Union[str, list], model:Union[str,PreTrainedModel],  truth_methods: list[TruthMethod], tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast]=None, eval_metrics:list[str] = ['auroc'],
                           correctness_evaluator:CorrectnessEvaluator = ROUGE(0.7), size_of_data = 1.0,  previous_context:list =[{'role': 'system', 'content': DEFAULT_SYSTEM_BENCHMARK_PROMPT}], 
                           user_prompt:str = DEFAULT_USER_PROMPT, seed:int = 0, return_method_details:bool = False, wandb_run = None, wandb_push_method_details:bool = False, 
-                          batch_generation=True,  add_generation_prompt = True, continue_final_message = False, split='test',  **kwargs):
+                          batch_generation=True,  add_generation_prompt = True, continue_final_message = False, split='test',
+                          with_rag:bool = False, **kwargs):
     
     dataset = get_dataset(dataset, size_of_data=size_of_data, seed=seed, split = split)
 
@@ -21,7 +22,7 @@ def evaluate_truth_method(dataset: Union[str, list], model:Union[str,PreTrainedM
         if eval_metric not in AVAILABLE_EVALUATION_METRICS:
             raise ValueError(f"Evaluation metric {eval_metric} is not available. Available evaluation metrics are: {AVAILABLE_EVALUATION_METRICS}")
                 
-    output_dict = run_over_dataset(dataset, model, truth_methods, tokenizer = tokenizer, correctness_evaluator = correctness_evaluator, 
+    output_dict = run_over_dataset(dataset, with_rag, model, truth_methods, tokenizer = tokenizer, correctness_evaluator = correctness_evaluator, 
                                    previous_context = previous_context, user_prompt = user_prompt, seed = seed, return_method_details = return_method_details, 
                                    wandb_run = wandb_run, wandb_push_method_details= wandb_push_method_details, 
                                    batch_generation=batch_generation, add_generation_prompt=add_generation_prompt, continue_final_message=continue_final_message, **kwargs)

@@ -122,6 +122,7 @@ ckpts
 datasets/
 script_logging/
 test/
+wandb/
 
 1_mars_framework/run_output/
 1_mars_framework/get_results/
@@ -129,4 +130,5 @@ test/
 1_mars_framework/metrics/vocab.txt
 1_mars_framework/metrics/bert-tensorflow2-answer-equivalence-bem-v1/
 
+2_truth_torch_framework/run_output/
 

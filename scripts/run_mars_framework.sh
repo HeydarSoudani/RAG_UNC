@@ -47,7 +47,7 @@ module load Java/11.0.2
 model="mistralai/Mistral-7B-Instruct-v0.3"
 dataset="nqgold"
 subsec="test"
-main_prompt_format="q_negative"
+main_prompt_format="q_positive"
 second_prompt_format="only_q"
 fraction_of_data_to_use=1.0    # nqgold 0.173 | trivia 0.057 | popqa 0.035
 run_id="run_0"

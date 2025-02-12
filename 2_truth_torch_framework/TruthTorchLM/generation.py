@@ -58,7 +58,7 @@ def generate_with_truth_value_hf_local(model:PreTrainedModel, messages:list, que
     method_spec_outputs = []
     
     for truth_method in truth_methods:
-        truth_values = truth_method(model=model,  input_text=text, generated_text=generated_text_return, question_context=question_context, all_ids=model_output, tokenizer=tokenizer, generation_seed = generation_seed, sampled_generations_dict=sampled_gen_dict, messages=messages, **kwargs)
+        truth_values = truth_method(model=model, input_text=text, generated_text=generated_text_return, question_context=question_context, all_ids=model_output, tokenizer=tokenizer, generation_seed = generation_seed, sampled_generations_dict=sampled_gen_dict, messages=messages, **kwargs)
         normalized_truth_values.append(truth_values['normalized_truth_value'])
         unnormalized_truth_values.append(truth_values['truth_value'])
         method_spec_outputs.append(truth_values)
@@ -66,13 +66,7 @@ def generate_with_truth_value_hf_local(model:PreTrainedModel, messages:list, que
 
     # 'all_ids': model_output.cpu(), 'generated_tokens':tokens
     # Create TruthObject
-    print('\n')
     truth_dict = {'generated_text':generated_text_return, 'normalized_truth_values':normalized_truth_values, 'unnormalized_truth_values':unnormalized_truth_values, 'method_specific_outputs' : method_spec_outputs, 'all_ids': model_output.cpu(), 'generated_tokens':tokens}
-    print(generated_text_return)
-    print(sampled_gen_dict['generated_texts'])
-    print(sampled_gen_dict['logprobs'])
-    print('\n')
-
 
     # Return TruthObject
     return truth_dict
