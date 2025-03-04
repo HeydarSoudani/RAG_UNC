@@ -1,6 +1,7 @@
 import json
 import random
 from tqdm import tqdm
+import TruthTorchLM as ttlm
 
 BASE_DIR = '/home/hsoudani/RAG_UNC'
 
@@ -17,7 +18,6 @@ def get_dataset(prompt_format, dataset_name, split, fraction_of_data_to_use):
                 sample = json.loads(line)
                 retrieved_docs[sample['id']] = sample["contexts"]
 
-
     data = []
     with open(dataset_file, 'r', encoding='utf-8') as file:
         for line in tqdm(file, desc="Converting dataset ..."):
@@ -27,7 +27,10 @@ def get_dataset(prompt_format, dataset_name, split, fraction_of_data_to_use):
             if prompt_format == 'only_q':
                 context = ""
             elif prompt_format == 'q_positive':
-                context = random.choice(item['positive_ctxs'][:2])['text']
+                if dataset_name in ['nqgold', 'trivia', 'popqa']:
+                    context = random.choice(item['positive_ctxs'][:2])['text'] if len(item['positive_ctxs']) > 0 else ""
+                elif dataset_name in ['2wikimultihopqa', 'hotpotqa', 'musique']:
+                    context = ' '.join(ctx['text'] for ctx in item.get('positive_ctxs', [])[:2])
             elif prompt_format == 'q_negative':
                 if len(item['negative_ctxs']) > 0:
                     context = random.choice(item['negative_ctxs'])['text']
@@ -59,3 +62,24 @@ def get_dataset(prompt_format, dataset_name, split, fraction_of_data_to_use):
 
     return test_data
 
+
+def get_few_shot_user_prompt(dataset_name, with_context=False):
+    
+    def load_examples(dataset_name):
+        examples_file = '/home/hsoudani/RAG_UNC/datasets/processed_files/prompt_files/examples.json'
+        with open(examples_file, 'r') as f:
+            examples = json.load(f)
+        return examples[dataset_name]
+    
+    prompt_text = ""
+    examples = load_examples(dataset_name)
+    for example in examples:
+        if with_context:
+            prompt_text += f"Document: {example['context']}\n"
+        prompt_text += f"Question: {example['query']} Answer: {example['answer']}\n"
+    
+    if with_context:
+        prompt_text += "Document: {document}\n"
+    prompt_text += "Question: {question_context} Answer: "
+    
+    return prompt_text

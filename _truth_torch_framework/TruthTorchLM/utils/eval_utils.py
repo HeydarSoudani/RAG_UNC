@@ -2,7 +2,7 @@ from tqdm import tqdm
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 from typing import Union
 from TruthTorchLM.generation import generate_with_truth_value
-from TruthTorchLM.templates import DEFAULT_SYSTEM_BENCHMARK_PROMPT, DEFAULT_USER_PROMPT
+from TruthTorchLM.templates import DEFAULT_SYSTEM_BENCHMARK_PROMPT, DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 import wandb
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, f1_score, precision_score, recall_score
 from scipy.stats import pearsonr, spearmanr
@@ -199,7 +199,7 @@ def metric_score(metric_names:list[str], generation_correctness:list, truth_valu
 
 
 def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,PreTrainedModel],  truth_methods: list, tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast]=None,
-                          correctness_evaluator = None, previous_context:list =[{'role': 'system', 'content': DEFAULT_SYSTEM_BENCHMARK_PROMPT}], user_prompt:str = DEFAULT_USER_PROMPT, seed:int = 0, return_method_details:bool = False, wandb_run = None, 
+                          correctness_evaluator = None, previous_context:list =[{'role': 'system', 'content': DEFAULT_SYSTEM_PROMPT}], user_prompt:str = DEFAULT_USER_PROMPT, seed:int = 0, return_method_details:bool = False, wandb_run = None, 
                           wandb_push_method_details:bool = False, batch_generation=True,  add_generation_prompt = True, continue_final_message = False, **kwargs):
     """
     Runs truth value estimation over a dataset and collects results.
@@ -229,9 +229,12 @@ def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,P
     output_dict['user_prompt'] = user_prompt
     output_dict['generation'] = []
     output_dict['generation_correctness'] = []
+    output_dict['qid'] = []
     output_dict['question_text'] = []
     output_dict['ground_truths'] = []
-    
+    output_dict['samples_generated_text'] = []
+    output_dict['samples_generated_token'] = []
+    output_dict['samples_logprobs'] = []
     output_dict['truth_methods'] = []#save the truth methods
 
     
@@ -272,11 +275,23 @@ def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,P
         generation_seed = seed, batch_generation=batch_generation, add_generation_prompt=add_generation_prompt, continue_final_message=continue_final_message, **kwargs)
         #print(truth_dict['generated_text'])
         
+        # correctness_evaluator.model.to(device)
         is_correct = correctness_evaluator(dataset[i]['question'], truth_dict['generated_text'], dataset[i]['ground_truths'])
-        output_dict['generation_correctness'].append(is_correct)
-        output_dict['generation'].append(truth_dict['generated_text'])
+        # correctness_evaluator.model.to('cpu')
+
+        
+        output_dict['qid'].append(dataset[i]['qid'])
         output_dict['question_text'].append(dataset[i]['question'])
         output_dict['ground_truths'].append(dataset[i]['ground_truths'])
+        output_dict['generation_correctness'].append(is_correct)
+        # most-likely
+        output_dict['generation'].append(truth_dict['generated_text'])
+        # samples
+        output_dict['samples_generated_text'].append(truth_dict['samples_generated_text'])
+        output_dict['samples_generated_token'].append(truth_dict['samples_generated_token'])
+        output_dict['samples_logprobs'].append(truth_dict['samples_logprobs'])
+        
+        
         
         for j in range(len(truth_methods)):
             output_dict[f'truth_method_{j}']['truth_values'].append(truth_dict['unnormalized_truth_values'][j])

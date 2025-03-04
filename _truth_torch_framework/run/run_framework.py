@@ -43,7 +43,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     ### === Define CUDA device =================== 
-    args.output_dir = "framework/run_output"
+    args.output_dir = "2_truth_torch_framework/run_output"
     args.device = torch.device("cuda:" + str(args.device) if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         print(f"Number of available GPUs: {torch.cuda.device_count()}")

@@ -39,7 +39,8 @@ def generate_with_truth_value_hf_local(model:PreTrainedModel, messages:list, que
             if message['role'] == 'user':
                 question_context = message['content']
                 break
-
+    # print(text)
+    # print('\n')
     generated_output = generate(text, model, tokenizer, **kwargs)
     generated_text_return = generated_output['generated_text_skip_specials']
     tokens = generated_output['tokens']
@@ -66,7 +67,18 @@ def generate_with_truth_value_hf_local(model:PreTrainedModel, messages:list, que
 
     # 'all_ids': model_output.cpu(), 'generated_tokens':tokens
     # Create TruthObject
-    truth_dict = {'generated_text':generated_text_return, 'normalized_truth_values':normalized_truth_values, 'unnormalized_truth_values':unnormalized_truth_values, 'method_specific_outputs' : method_spec_outputs, 'all_ids': model_output.cpu(), 'generated_tokens':tokens}
+    truth_dict = {
+        'generated_text':generated_text_return,
+        'normalized_truth_values':normalized_truth_values,
+        'unnormalized_truth_values':unnormalized_truth_values,
+        'method_specific_outputs' : method_spec_outputs,
+        'all_ids': model_output.cpu(),
+        'generated_tokens':tokens,
+        
+        'samples_generated_text': sampled_gen_dict['generated_texts'],
+        'samples_generated_token': sampled_gen_dict['tokens'],
+        'samples_logprobs': sampled_gen_dict['logprobs'],
+    }
 
     # Return TruthObject
     return truth_dict
@@ -225,7 +237,18 @@ number_of_generations:int = 0, return_text:bool = False, return_logits:bool = Fa
         model_output.sequences = model_output.sequences.cpu()
         if type(eos_token_id) == list:
             temp = torch.stack([torch.argmax((model_output.sequences[:, len(input_ids[0]):] == eos).to(dtype=torch.int), dim=-1) for eos in eos_token_id]).T
-            indices = [torch.min(temp[i][temp[i]>0]).item() for i in range(len(temp))]
+            # indices = [torch.min(temp[i][temp[i]>0]).item() for i in range(len(temp))]
+            # ------------------------------
+            # Mine: Llama 3 generates error
+            # ------------------------------
+            indices = []
+            for i in range(len(temp)):
+                non_zero_elements = temp[i][temp[i] > 0]
+                if non_zero_elements.numel() > 0:
+                    indices.append(torch.min(non_zero_elements).item())
+                else:
+                    indices.append(0)  # Handle the case where no EOS token is found
+            # ------------------------------
         else:
             indices = torch.argmax((model_output.sequences[:, len(input_ids[0]):] == eos_token_id).to(dtype=torch.int), dim=-1)
         indices[indices==0] = model_output.sequences.shape[1] - len(input_ids[0]) -1

@@ -4,14 +4,14 @@ from TruthTorchLM.truth_methods import TruthMethod
 from .correctness_evaluator import CorrectnessEvaluator 
 from .rouge import ROUGE
 from TruthTorchLM.availability import AVAILABLE_EVALUATION_METRICS
-from TruthTorchLM.templates import DEFAULT_SYSTEM_BENCHMARK_PROMPT, DEFAULT_USER_PROMPT
+from TruthTorchLM.templates import DEFAULT_SYSTEM_BENCHMARK_PROMPT, DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from TruthTorchLM.utils.dataset_utils import get_dataset
 from TruthTorchLM.utils.eval_utils import metric_score, run_over_dataset
 import wandb
 
 
 def evaluate_truth_method(dataset: Union[str, list], model:Union[str,PreTrainedModel],  truth_methods: list[TruthMethod], tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast]=None, eval_metrics:list[str] = ['auroc'],
-                          correctness_evaluator:CorrectnessEvaluator = ROUGE(0.7), size_of_data = 1.0,  previous_context:list =[{'role': 'system', 'content': DEFAULT_SYSTEM_BENCHMARK_PROMPT}], 
+                          correctness_evaluator:CorrectnessEvaluator = ROUGE(0.7), size_of_data = 1.0,  previous_context:list =[{'role': 'system', 'content': DEFAULT_SYSTEM_PROMPT}], 
                           user_prompt:str = DEFAULT_USER_PROMPT, seed:int = 0, return_method_details:bool = False, wandb_run = None, wandb_push_method_details:bool = False, 
                           batch_generation=True,  add_generation_prompt = True, continue_final_message = False, split='test',
                           with_rag:bool = False, **kwargs):
