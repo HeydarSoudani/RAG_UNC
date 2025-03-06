@@ -41,8 +41,9 @@ def get_dataset(prompt_format, dataset_name, split, fraction_of_data_to_use):
                         context = ""
             else:
                 ctxs = retrieved_docs[item['id']]
-                context = '\n'.join([ctx['context'] for ctx in ctxs[:1]])
-            
+                index_ = 1 if dataset_name in ['nqgold', 'trivia', 'popqa'] else 2
+                context = ' '.join([ctx['context'] for ctx in ctxs[:index_]])
+                
             
             # === 
             data.append({

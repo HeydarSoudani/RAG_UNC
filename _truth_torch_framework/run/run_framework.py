@@ -15,9 +15,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
     parser.add_argument('--dataset', type=str, default='nqgold', choices=[
-        'nqgold', 'nqswap', 'trivia', 'popqa',
-        'webquestions', 'squad1', 'nq',
+        'nqgold', 'trivia', 'popqa',
         '2wikimultihopqa', 'hotpotqa', 'musique',
+        'webquestions', 'squad1', 'nq', 'nqswap',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='dev', choices=['train', 'dev', 'test', 'validation'])
@@ -27,23 +27,25 @@ if __name__ == "__main__":
         'contriever_retriever_top1', 'contriever_retriever_top5',
         'rerank_retriever_top1', 'rerank_retriever_top5'
     ])
-    parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
-        'exact_match', 'bem_score', 'bert_score', 'rouge_score', 'llama3_score', 'gpt_score'
+    parser.add_argument('--accuracy_metric', type=str, default="model_judge", choices=[
+        'exact_match', 'model_judge', 'bem_score', 'bert_score', 'rouge_score'
     ])
+    parser.add_argument('--model_eval', type=str, default='gpt-3.5-turbo') # meta-llama/Llama-3.1-8B-Instruct
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
-    parser.add_argument('--num_generations_per_prompt', type=int, default=10)
-    parser.add_argument('--max_new_tokens', type=int, default=128)
+    parser.add_argument('--num_generations', type=int, default=10)
+    parser.add_argument('--max_new_tokens', type=int, default=32)
     parser.add_argument('--decoding_method', type=str, default='beam_search')
     parser.add_argument('--temperature', type=float, default='1.0')
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     parser.add_argument('--device', type=int, default=0)
+    parser.add_argument('--run', type=str, default='run_0 (300s-G3.5)')
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()
     
     ### === Define CUDA device =================== 
-    args.output_dir = "2_truth_torch_framework/run_output"
+    args.output_dir = f"_truth_torch_framework/run_output/{args.run}"
     args.device = torch.device("cuda:" + str(args.device) if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         print(f"Number of available GPUs: {torch.cuda.device_count()}")
@@ -54,9 +56,10 @@ if __name__ == "__main__":
         
     
     ### === Run Steps ============================
+    
     set_seed(args.seed)
     truth_generation(args)
     
     
-    # python 2_truth_torch_framework/run/run_framework.py
+    # python _truth_torch_framework/run/run_framework.py
 

@@ -19,7 +19,7 @@ class MARS(TruthMethod):
     REQUIRES_LOGPROBS = True
 
     def __init__(self, mars_temperature:float = 0.1, mars_model=None, mars_tokenizer = None, device = 'cuda'):
-        super().__init__()
+        super().__init__()        
         self.mars_temperature = mars_temperature
         if mars_model is None:
             #load from HF
@@ -135,7 +135,6 @@ class MARS(TruthMethod):
         merged_importance_vector = softmax(merged_importance_vector, axis=0)
         score = 0.5 * np.dot( merged_importance_vector, neg_log_likelihoods_word) + 0.5 * np.mean(neg_log_likelihoods )
         return -score, merged_importance_vector
-
 
 
     def forward_hf_local(self, model:PreTrainedModel, input_text:str, generated_text:str, question_context:str, all_ids:Union[list, torch.Tensor], 

@@ -1,6 +1,7 @@
 DEFAULT_TEMPLATE = "{context}"
 
-DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant. Provide only SHORT form answers, NOT complete sentence.'
+# DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant. Provide only SHORT form answers, NOT complete sentence.'
+DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant. Provide only SHORT form answers, NOT complete sentence, without any additional text or explanation.'
 DEFAULT_SYSTEM_BENCHMARK_PROMPT = 'You are a helpful assistant. Answer the following question in a single brief but complete sentence.'
 
 DEFAULT_USER_PROMPT = 'Question: {question_context} Answer:'
@@ -168,3 +169,21 @@ INCORRECT
 NOT_ATTEMPTED
 Just return one the following words: 'CORRECT', 'INCORRECT', or 'NOT_ATTEMPTED'.
 """.strip()
+
+
+# prompt = """
+# Your job is to look at a question, gold targets, and a predicted answer, and then assign a
+# grade of either ["CORRECT", "INCORRECT", "NOT_ATTEMPTED"].
+
+# You will behave as an question answer evaluator.
+# I will give you a question, the ground truth of the question and a generated answer by a language model.
+
+# grade of either ["CORRECT", "INCORRECT", "NOT_ATTEMPTED"].
+
+# You will output "correct" if the generated answer is correct regarding question and ground truth.
+# Otherwise, output "false".
+# Question: {batch["question"][0]}, 
+# Ground Truth: {answer},
+# Generated Answer: {sequence_dict["most_likely_generation"].lstrip()}
+
+# """

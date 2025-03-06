@@ -22,6 +22,7 @@ def truth_generation(args):
         Model name:  {args.model}
         Dataset:     {args.dataset}/{args.subsec} ({args.fraction_of_data_to_use})
         Prompt:      {args.prompt_format}
+        Correctness: {args.accuracy_metric}
         Seed:        {args.seed}
     """.replace('        ', ''))
     
@@ -34,7 +35,8 @@ def truth_generation(args):
     
     # === Generation Model ======================
     # model = "gpt-4o"
-    model = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16).to(args.device)
+    # model = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16).to(args.device)
+    model = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16, device_map='auto')
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
     
     
@@ -45,7 +47,7 @@ def truth_generation(args):
     pe = ttlm.truth_methods.Entropy(number_of_generations=args.num_generations)
     se = ttlm.truth_methods.SemanticEntropy()
     mars = ttlm.truth_methods.MARS()
-    lars = ttlm.truth_methods.LARS(ue_type='confidence')
+    lars_co = ttlm.truth_methods.LARS(ue_type='confidence')
     sar = ttlm.truth_methods.SAR()
     # Black-box
     nums = ttlm.truth_methods.NumSemanticSetUncertainty()
@@ -57,12 +59,12 @@ def truth_generation(args):
     kere = ttlm.truth_methods.KernelLanguageEntropy()
     
     truth_methods_name = [
-        'Pt', 'Conf', 'PE', 'SE', 'MARS', 'LARS', 'SAR',
-        'NumS', 'EigV', 'ECC', 'Deg', 'Verb', 'INS', 'KerE'
+        'Pt', 'Conf', 'PE', 'SE', 'MARS', 'SAR', 'LARS_Co', 'INS',
+        'NumS', 'EigV', 'ECC', 'Deg', 'Verb', 'KerE'
     ]
     truth_methods = [
-        pt, cnf, pe, se, mars, lars, sar,
-        nums, eigv, ecc, deg, verb, inside, kere
+        pt, cnf, pe, se, mars, sar, lars_co, inside,
+        nums, eigv, ecc, deg, verb, kere
     ]
     
     # === Correctness Evaluator =================
@@ -73,8 +75,10 @@ def truth_generation(args):
         if 'gpt' in args.model_eval:
             correctness_evaluator = ttlm.evaluators.ModelJudge(model=args.model_eval, num_retries=3)
         else:
-            model_eval = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16).to(args.device)
-            tokenizer_eval = AutoTokenizer.from_pretrained(args.model, use_fast=False)
+            # correctness_evaluator = ttlm.evaluators.ModelJudge(model=model, tokenizer=tokenizer, num_retries=3)
+            # model_eval = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16).to(args.device)
+            model_eval = AutoModelForCausalLM.from_pretrained(args.model_eval, torch_dtype=torch.bfloat16, device_map='auto')
+            tokenizer_eval = AutoTokenizer.from_pretrained(args.model_eval, use_fast=False)
             correctness_evaluator = ttlm.evaluators.ModelJudge(model=model_eval, tokenizer=tokenizer_eval, num_retries=3)
     
     
@@ -112,7 +116,7 @@ def truth_generation(args):
         eval_metrics=['auroc', 'spearman', 'auprc', 'prr'],
         tokenizer=tokenizer,
         correctness_evaluator=correctness_evaluator,
-        max_new_tokens=32,
+        max_new_tokens=args.max_new_tokens,
         seed=args.seed,
         wandb_run=wandb_run
         # wandb_push_method_details=True
@@ -157,12 +161,14 @@ def truth_generation(args):
     
     # === Save Evaluation =======================
     reuslts_dict = {}
+    
+    correctness_values = [max(0, val) for val in results['output_dict']['generation_correctness']]
     reuslts_dict['correctness'] = {
         'metric': args.accuracy_metric,
-        'accuracy': sum(results['output_dict']['generation_correctness'])/len(results['output_dict']['generation_correctness'])
+        'accuracy': sum(correctness_values) / len(correctness_values)
     }
-    for i in range(len(results['eval_list'])):
-        
+    
+    for i in range(len(results['eval_list'])):    
         truth_method = results['output_dict']['truth_methods'][i]
         truth_values = np.array(results['output_dict'][f'truth_method_{i}']['truth_values'])
         if truth_method == "VerbalizedConfidence":
@@ -184,15 +190,15 @@ def truth_generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
-    parser.add_argument('--dataset', type=str, default='2wikimultihopqa', choices=[
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
         'nqgold', 'trivia', 'popqa',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'webquestions', 'squad1', 'nq', 'nqswap',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test', 'validation'])
-    parser.add_argument('--prompt_format', type=str, default='only_q', choices=[
+    parser.add_argument('--prompt_format', type=str, default='q_positive', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',
@@ -201,22 +207,23 @@ if __name__ == "__main__":
     parser.add_argument('--accuracy_metric', type=str, default="exact_match", choices=[
         'exact_match', 'model_judge', 'bem_score', 'bert_score', 'rouge_score'
     ])
-    parser.add_argument('--model_eval', type=str, default='gpt-3.5-turbo')
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.06)
+    parser.add_argument('--model_eval', type=str, default='gpt-3.5-turbo') # meta-llama/Llama-3.1-8B-Instruct
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.021)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument('--num_generations', type=int, default=10)
-    parser.add_argument('--max_new_tokens', type=int, default=128)
+    parser.add_argument('--max_new_tokens', type=int, default=32)
     parser.add_argument('--decoding_method', type=str, default='beam_search')
     parser.add_argument('--temperature', type=float, default='1.0')
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     parser.add_argument('--device', type=int, default=0)
+    parser.add_argument('--run', type=str, default='run_1 (300s-EM)')
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()
     
     
     ### === Define CUDA device =================== 
-    args.output_dir = "2_truth_torch_framework/run_output"
+    args.output_dir = f"_truth_torch_framework/run_output/{args.run}"
     args.device = torch.device("cuda:" + str(args.device) if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         print(f"Number of available GPUs: {torch.cuda.device_count()}")
@@ -231,4 +238,4 @@ if __name__ == "__main__":
     truth_generation(args)
     
     
-    # python 2_truth_torch_framework/run/truth_generation.py
+    # python _truth_torch_framework/run/truth_generation.py

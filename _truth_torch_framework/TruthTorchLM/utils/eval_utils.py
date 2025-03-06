@@ -262,7 +262,7 @@ def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,P
 
     for i in tqdm(range(len(dataset))):
         messages = previous_context.copy()
-        
+        print(dataset[i]['qid'])
         if with_rag:
             messages.append({'role': 'user', 'content': user_prompt.format(question_context=dataset[i]['question'], document=dataset[i]['context'])})
         else:
