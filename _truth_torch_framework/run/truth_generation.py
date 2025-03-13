@@ -97,7 +97,7 @@ def truth_generation(args):
     print(f"Id:               {dataset[sample_index]['qid']}")
     print(f"Question:         {dataset[sample_index]['question']}")
     print(f"Answers:          {dataset[sample_index]['ground_truths']}")
-    print(f"Context:         \n{dataset[sample_index]['context']}")
+    print(f"Context:        \n{dataset[sample_index]['context']}")
     
     
     # === Generation ============================
@@ -190,15 +190,15 @@ def truth_generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-chat-hf')
-    parser.add_argument('--dataset', type=str, default='popqa', choices=[
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
+    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
         'nqgold', 'trivia', 'popqa',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'webquestions', 'squad1', 'nq', 'nqswap',
         'topicoqa',
     ])
     parser.add_argument('--subsec', type=str, default='test', choices=['train', 'dev', 'test', 'validation'])
-    parser.add_argument('--prompt_format', type=str, default='q_positive', choices=[
+    parser.add_argument('--prompt_format', type=str, default='only_q', choices=[
         'only_q', 'q_positive', 'q_negative', 'q_conflict',
         'bm25_retriever_top1', 'bm25_retriever_top5',
         'contriever_retriever_top1', 'contriever_retriever_top5',
@@ -208,7 +208,7 @@ if __name__ == "__main__":
         'exact_match', 'model_judge', 'bem_score', 'bert_score', 'rouge_score'
     ])
     parser.add_argument('--model_eval', type=str, default='gpt-3.5-turbo') # meta-llama/Llama-3.1-8B-Instruct
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.021)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument('--num_generations', type=int, default=10)
     parser.add_argument('--max_new_tokens', type=int, default=32)

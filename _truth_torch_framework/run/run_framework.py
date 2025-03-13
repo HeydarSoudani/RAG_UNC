@@ -56,7 +56,6 @@ if __name__ == "__main__":
         
     
     ### === Run Steps ============================
-    
     set_seed(args.seed)
     truth_generation(args)
     

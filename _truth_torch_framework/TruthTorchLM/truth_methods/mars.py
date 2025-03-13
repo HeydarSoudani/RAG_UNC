@@ -156,7 +156,8 @@ class MARS(TruthMethod):
                 model_output = all_ids
         #model_output = all_ids
         tokens = model_output[0][len(input_ids[0]):]
-        tokens_text = [tokenizer.decode(token) for token in tokens]
+        # tokens_text = [tokenizer.decode(token) for token in tokens] -> original for others
+        tokens_text = [tokenizer.decode([token]) for token in tokens] # -> Mine for Gemma
         generated_text = tokenizer.decode(tokens, skip_special_tokens = False)
 
         with torch.no_grad():

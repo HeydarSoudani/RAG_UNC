@@ -1,7 +1,6 @@
 import json
 import random
 from tqdm import tqdm
-import TruthTorchLM as ttlm
 
 BASE_DIR = '/home/hsoudani/RAG_UNC'
 
