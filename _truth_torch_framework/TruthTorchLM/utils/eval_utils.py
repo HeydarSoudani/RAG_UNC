@@ -231,6 +231,7 @@ def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,P
     output_dict['generation_correctness'] = []
     output_dict['qid'] = []
     output_dict['question_text'] = []
+    output_dict['prompt_text'] = []
     output_dict['ground_truths'] = []
     output_dict['samples_generated_text'] = []
     output_dict['samples_generated_token'] = []
@@ -263,9 +264,11 @@ def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,P
     for i in tqdm(range(len(dataset))):
         messages = previous_context.copy()
         if with_rag:
-            messages.append({'role': 'user', 'content': user_prompt.format(question_context=dataset[i]['question'], document=dataset[i]['context'])})
+            prompt_text = user_prompt.format(question_context=dataset[i]['question'], document=dataset[i]['context'])
+            messages.append({'role': 'user', 'content': prompt_text})
         else:
-            messages.append({'role': 'user', 'content': user_prompt.format(question_context=dataset[i]['question'])})
+            prompt_text = user_prompt.format(question_context=dataset[i]['question'])
+            messages.append({'role': 'user', 'content': prompt_text})
 
         # print('\n================')
         # print(messages)
@@ -283,13 +286,13 @@ def run_over_dataset(dataset: Union[str, list], with_rag:bool, model:Union[str,P
         output_dict['question_text'].append(dataset[i]['question'])
         output_dict['ground_truths'].append(dataset[i]['ground_truths'])
         output_dict['generation_correctness'].append(is_correct)
+        output_dict['prompt_text'].append(prompt_text)
         # most-likely
         output_dict['generation'].append(truth_dict['generated_text'])
         # samples
         output_dict['samples_generated_text'].append(truth_dict['samples_generated_text'])
         output_dict['samples_generated_token'].append(truth_dict['samples_generated_token'])
         output_dict['samples_logprobs'].append(truth_dict['samples_logprobs'])
-        
         
         
         for j in range(len(truth_methods)):

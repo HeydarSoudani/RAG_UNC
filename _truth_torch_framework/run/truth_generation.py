@@ -16,7 +16,6 @@ from datasets_ import short_form
 
 
 def truth_generation(args):
-    
     print("\n== Generation with truthfulness ...")
     print(f"""
         Model name:  {args.model}
@@ -31,7 +30,6 @@ def truth_generation(args):
     generations_output_file = f'{args.output_dir}/{model_}/{args.dataset}_{args.subsec}/{args.prompt_format}/generations.jsonl'
     uncertainties_output_file = f'{args.output_dir}/{model_}/{args.dataset}_{args.subsec}/{args.prompt_format}/uncertainties.jsonl'
     overall_results_output_file = f'{args.output_dir}/{model_}/{args.dataset}_{args.subsec}/{args.prompt_format}/overall_results.jsonl'
-    
     
     # === Generation Model ======================
     # model = "gpt-4o"
@@ -122,7 +120,6 @@ def truth_generation(args):
         # wandb_push_method_details=True
     )
     
-    
     # === Save Generations =====================
     os.makedirs(os.path.dirname(generations_output_file), exist_ok=True)
     with open(generations_output_file, 'w') as file:
@@ -134,6 +131,7 @@ def truth_generation(args):
                 "correctness": results['output_dict']['generation_correctness'][i],
                 "generation_text_most_likely": results['output_dict']['generation'][i],
                 "samples_generation_text": results['output_dict']['samples_generated_text'][i],
+                "prompt_text": results['output_dict']['prompt_text'][i],
                 # "samples_generation_token": results['output_dict']['samples_generated_token'][i],
                 # "samples_logprobs": results['output_dict']['samples_logprobs'][i],
                 "samples_probs": [torch.exp(torch.tensor(item)).tolist() for item in results['output_dict']['samples_logprobs'][i]]
@@ -190,8 +188,8 @@ def truth_generation(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.1-8B-Instruct')
-    parser.add_argument('--dataset', type=str, default='nqgold', choices=[
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-7B-Instruct')
+    parser.add_argument('--dataset', type=str, default='popqa', choices=[
         'nqgold', 'trivia', 'popqa',
         '2wikimultihopqa', 'hotpotqa', 'musique',
         'webquestions', 'squad1', 'nq', 'nqswap',
@@ -208,7 +206,7 @@ if __name__ == "__main__":
         'exact_match', 'model_judge', 'bem_score', 'bert_score', 'rouge_score'
     ])
     parser.add_argument('--model_eval', type=str, default='gpt-3.5-turbo') # meta-llama/Llama-3.1-8B-Instruct
-    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.01)
+    parser.add_argument('--fraction_of_data_to_use', type=float, default=0.035)
     parser.add_argument("--roc_auc_threshold", type=float, default=0.8)
     parser.add_argument('--num_generations', type=int, default=10)
     parser.add_argument('--max_new_tokens', type=int, default=32)
@@ -217,10 +215,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_beams', type=int, default='1')
     parser.add_argument('--top_p', type=float, default=1.0)
     parser.add_argument('--device', type=int, default=0)
-    parser.add_argument('--run', type=str, default='run_1 (300s-EM)')
+    parser.add_argument('--run', type=str, default='run_2 (500s-EM)')
     parser.add_argument("--seed", type=int, default=10)
     args = parser.parse_args()
-    
     
     ### === Define CUDA device =================== 
     args.output_dir = f"_truth_torch_framework/run_output/{args.run}"

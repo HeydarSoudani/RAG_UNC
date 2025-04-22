@@ -3,8 +3,8 @@
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
-#SBATCH --partition=gpu
-#SBATCH --time=0:45:00
+#SBATCH --partition=gpu_a100
+#SBATCH --time=1:30:00
 #SBATCH --output=script_logging/slurm_%A.out
 
 module load 2024
@@ -17,14 +17,14 @@ module load Python/3.12.3-GCCcore-13.3.0
 
 
 ### === Set variables ==========================
-model="google/gemma-2-9b-it"
-dataset="2wikimultihopqa"
+model="Qwen/Qwen2.5-7B-Instruct"
+dataset="popqa"
 subsec="test"
-prompt_format="q_positive"
-fraction_of_data_to_use=0.6    # nqgold 0.104 | trivia 0.034 | popqa 0.021 | 2wikimultihopqa 0.6
+prompt_format="bm25_retriever_top1"
+fraction_of_data_to_use=0.035    # nqgold 0.104 | trivia 0.034 | popqa 0.021|0.035 | 2wikimultihopqa 0.6
 accuracy_metric="exact_match"    # model_judge | exact_match
 model_eval="gpt-3.5-turbo"
-run="run_1 (300s-EM)"          # run_0 (300s-G3.5) | run_1 (300s-EM)
+run="run_2 (500s-EM)"          # run_0 (300s-G3.5) | run_1 (300s-EM)
 
 srun python $HOME/RAG_UNC/_truth_torch_framework/run/run_framework.py \
     --model "$model" \

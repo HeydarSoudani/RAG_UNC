@@ -8,7 +8,7 @@ import argparse
 
 from utils.utils import set_seed
 from truth_generation import truth_generation
-
+from axiomatic_evaluation import axiomatic_evaluation
 
 
 if __name__ == "__main__":
@@ -57,8 +57,8 @@ if __name__ == "__main__":
     
     ### === Run Steps ============================
     set_seed(args.seed)
-    truth_generation(args)
-    
+    # truth_generation(args)
+    axiomatic_evaluation(args)
     
     # python _truth_torch_framework/run/run_framework.py
 
